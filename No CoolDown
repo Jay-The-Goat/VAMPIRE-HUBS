@@ -1,28 +1,15 @@
--- Optimize service indexing
-local task = task
-local getgenv = getgenv or function() return _G end
+-- Cache service and signal for maximum execution speed
+local RunService = game:GetService("RunService")
+local Stepped = RunService.Stepped
 
--- Cache core task functions for maximum execution speed
-local task_wait = task.wait
-local task_defer = task.defer
+-- Cache the original wait to prevent infinite loops during hooking
+local oldWait = wait
 
--- Safely modify the environment
-local success, err = pcall(function()
-    -- 1. Upgrade global wait to instant execution via task.defer
-    getgenv().wait = function(duration)
-        task_defer(coroutine.running())
-        return 0, 0
-    end
-
-    -- 2. Hook task.wait if exploit environment allows hookfunction
-    if hookfunction then
-        hookfunction(task.wait, function(duration)
-            task_defer(coroutine.running())
-            return 0, 0
-        end)
-    end
+-- Hook the global wait function exactly how you intended
+hookfunction(wait, function(duration)
+    -- Sync perfectly with the game's physics simulation frame
+    Stepped:Wait() 
+    
+    -- Return 0 to prevent external scripts from crashing on nil values
+    return 0
 end)
-
-if not success then
-    warn("Failed to apply no-cooldown patch: " .. tostring(err))
-end
