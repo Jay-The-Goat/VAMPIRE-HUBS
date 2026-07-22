@@ -1,3 +1,7 @@
+-- ============================================================================
+-- ULTIMATE USE TOOLS SCRIPT - AUTO ACTIVATE ON PICKUP
+-- ============================================================================
+
 -- Crear elementos de GUI
 local screenGui = Instance.new("ScreenGui")
 local toolButton = Instance.new("TextButton")
@@ -18,7 +22,7 @@ toolButton.Size = UDim2.new(0, 110, 0, 40) -- Un poco más grande para mejor pre
 toolButton.BackgroundColor3 = Color3.fromRGB(15, 15, 20) -- Fondo negro oscuro con tinte azulado
 toolButton.BackgroundTransparency = 0.2 -- Ligeramente translúcido (efecto vidrio)
 toolButton.Font = Enum.Font.GothamBold -- Fuente gruesa y moderna
-toolButton.Text = "SPAM-OFF"
+toolButton.Text = "AUTO: OFF"
 toolButton.TextColor3 = Color3.fromRGB(255, 255, 255) -- Base blanca que se mezcla con el degradado
 toolButton.TextSize = 14
 toolButton.TextScaled = false -- Desactivado para mantener consistencia visual limpia
@@ -95,21 +99,75 @@ UserInputService.InputChanged:Connect(function(input)
         update(input)
     end
 end)
--- ==========================================
 
--- Variables de estado
+-- ==========================================
+-- VARIABLES DE ESTADO
+-- ==========================================
 local clipOn = false
 local noclipConnection = nil
+local toolTracking = {}
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
 
--- Función para activar/desactivar noclip
+-- ==========================================
+-- 1. AUTO ACTIVATE TOOLS ON PICKUP - INSTANT DETECTION
+-- ==========================================
+local function autoActivateToolOnPickup()
+    task.spawn(function()
+        while clipOn do
+            if player and player.Backpack then
+                for _, tool in ipairs(player.Backpack:GetChildren()) do
+                    if tool:IsA("Tool") and not toolTracking[tool] then
+                        toolTracking[tool] = true
+                        
+                        -- Instant equip on pickup
+                        tool.Parent = player.Character
+                        
+                        task.spawn(function()
+                            task.wait(0.01) -- Minimal delay
+                            pcall(function()
+                                tool:Activate()
+                            end)
+                        end)
+                    end
+                end
+            end
+            RunService.RenderStepped:Wait()
+        end
+    end)
+end
+
+-- ==========================================
+-- 2. CONTINUOUS TOOL ACTIVATION LOOP
+-- ==========================================
+local function continuousToolActivation()
+    task.spawn(function()
+        while clipOn do
+            if player and player.Character then
+                for _, tool in ipairs(player.Character:GetChildren()) do
+                    if tool:IsA("Tool") then
+                        pcall(function()
+                            tool:Activate()
+                        end)
+                    end
+                end
+            end
+            RunService.Stepped:Wait()
+        end
+    end)
+end
+
+-- ==========================================
+-- 3. FUNCTION FOR ENABLING NOCLIP
+-- ==========================================
 local function toggleNoclip(enabled)
     if noclipConnection then
         noclipConnection:Disconnect()
         noclipConnection = nil
     end
     if enabled then
-        noclipConnection = game:GetService("RunService").Stepped:Connect(function()
-            local player = game.Players.LocalPlayer
+        noclipConnection = RunService.Stepped:Connect(function()
             if player and player.Character then
                 for _, part in ipairs(player.Character:GetDescendants()) do
                     if part:IsA("BasePart") and part.CanCollide then
@@ -121,9 +179,10 @@ local function toggleNoclip(enabled)
     end
 end
 
--- Función para desequipar herramientas
+-- ==========================================
+-- 4. FUNCTION FOR UNEQUIPPING TOOLS
+-- ==========================================
 local function desequipTools()
-    local player = game.Players.LocalPlayer
     if player and player.Character then
         for _, tool in ipairs(player.Character:GetChildren()) do
             if tool:IsA("Tool") then
@@ -133,10 +192,12 @@ local function desequipTools()
     end
 end
 
--- Alternar spam y noclip
+-- ==========================================
+-- 5. TOGGLE SPAM/AUTO ACTIVATION
+-- ==========================================
 local function toggleSpam(enabled)
     clipOn = enabled
-    toolButton.Text = clipOn and "SPAM-OFF" or "USE TOOLS"
+    toolButton.Text = clipOn and "AUTO: ON" or "AUTO: OFF"
     
     -- Animación visual drástica al encender o apagar
     if clipOn then
@@ -146,6 +207,11 @@ local function toggleSpam(enabled)
             ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 100, 100)),
             ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 30, 30))
         })
+        
+        -- Start auto activation threads
+        autoActivateToolOnPickup()
+        continuousToolActivation()
+        
     else
         -- Estado Inactivo: Colores más oscuros/apagados de espera
         TweenService:Create(stroke, tweenInfo, {Color = Color3.fromRGB(150, 20, 20)}):Play()
@@ -153,15 +219,21 @@ local function toggleSpam(enabled)
             ColorSequenceKeypoint.new(0, Color3.fromRGB(180, 30, 30)),
             ColorSequenceKeypoint.new(1, Color3.fromRGB(100, 0, 0))
         })
+        
+        -- Clear tool tracking
+        toolTracking = {}
+        
+        -- Activar/desactivar noclip
+        toggleNoclip(clipOn)
+        
+        -- Si se desactiva, guardar herramientas
+        if not clipOn then
+            desequipTools()
+        end
     end
 
     -- Activar/desactivar noclip
     toggleNoclip(clipOn)
-
-    -- Si se desactiva, guardar herramientas
-    if not clipOn then
-        desequipTools()
-    end
 end
 
 -- Conectar botón con la función de alternar
@@ -169,37 +241,41 @@ toolButton.MouseButton1Click:Connect(function()
     toggleSpam(not clipOn)
 end)
 
--- Bucle optimizado para equipar y activar herramientas
-game:GetService("RunService").Heartbeat:Connect(function()
-    if clipOn then
-        local player = game.Players.LocalPlayer
-        if player and player.Character then
-            for _, tool in ipairs(player.Backpack:GetChildren()) do
-                if tool:IsA("Tool") then
-                    tool.Parent = player.Character
-                    task.spawn(function()
-                        while clipOn and tool.Parent == player.Character do
-                            pcall(function()
-                                tool:Activate()
+-- ==========================================
+-- 6. DETECT TOOL ADDITION TO BACKPACK IN REAL TIME
+-- ==========================================
+local function setupBackpackMonitoring()
+    task.spawn(function()
+        while true do
+            if player and player.Backpack then
+                local backpackAdded
+                backpackAdded = player.Backpack.ChildAdded:Connect(function(child)
+                    if clipOn and child:IsA("Tool") then
+                        task.wait(0.001) -- Instant detection
+                        if child.Parent == player.Backpack then
+                            child.Parent = player.Character
+                            task.spawn(function()
+                                task.wait(0.005)
+                                pcall(function()
+                                    child:Activate()
+                                end)
                             end)
-                            task.wait() -- Máxima velocidad
                         end
-                    end)
-                end
+                    end
+                end)
             end
+            task.wait(0.1)
         end
-    end
-end)
+    end)
+end
 
--- Variables de servicio
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local player = Players.LocalPlayer
+setupBackpackMonitoring()
 
--- Altura a la que flotarán las herramientas cuando el jugador muera
+-- ==========================================
+-- 7. FLOAT TOOLS ON DEATH
+-- ==========================================
 local deathHeight = 10
 
--- Función para detectar si el jugador está muerto
 local function IsPlayerDead()
     local char = player.Character
     if not char then return false end
@@ -207,7 +283,6 @@ local function IsPlayerDead()
     return humanoid and humanoid.Health <= 0
 end
 
--- Función para hacer flotar las herramientas solo cuando el jugador muere
 local function FloatToolsOnDeath()
     if not player.Character then return end
     for _, tool in ipairs(player.Character:GetChildren()) do
@@ -244,6 +319,11 @@ end)
 
 -- Restaurar gravedad al reaparecer
 player.CharacterAdded:Connect(function(character)
-    task.wait(1) -- Esperar un momento para que se cargue el personaje
-    FloatToolsOnDeath() -- Verificar si debe aplicar o quitar la flotación
+    task.wait(0.5)
+    toolTracking = {}
+    if clipOn then
+        FloatToolsOnDeath()
+    end
 end)
+
+print("✅ ULTIMATE USE TOOLS SCRIPT LOADED - AUTO ACTIVATE ON PICKUP!")
