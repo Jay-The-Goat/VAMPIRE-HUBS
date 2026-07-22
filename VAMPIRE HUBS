@@ -1,0 +1,654 @@
+-- [[ VAMPIRE - PREMIER INTELLIGENCE MULTI-EXECUTION SYSTEM ]]
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Stats = game:GetService("Stats")
+local DataStoreService = game:GetService("DataStoreService")
+local TweenService = game:GetService("TweenService")
+local LocalPlayer = Players.LocalPlayer
+
+-- Target Configuration
+local OWNER_USERNAME = "Thegoat_legued"
+local IS_OWNER = (LocalPlayer.Name == OWNER_USERNAME)
+
+-- 1. Create Core ScreenGui Container
+local VampireGui = Instance.new("ScreenGui")
+VampireGui.Name = "Vampire_V2"
+VampireGui.ResetOnSpawn = false
+VampireGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+pcall(function()
+    if syn and syn.protect_gui then
+        syn.protect_gui(VampireGui)
+    elseif gethui then
+        VampireGui.Parent = gethui()
+    else
+        VampireGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+    end
+end)
+
+-- 2. Rotating Password Configuration Matrix (24-Hour System)
+local DailyPasswords = {
+    [1] = "Vampire_Sunday2026",
+    [2] = "Vampire_Monday99",
+    [3] = "Vampire_TuesdayX",
+    [4] = "Vampire_WednesdayBlood",
+    [5] = "Vampire_ThursdayBite",
+    [6] = "Vampire_FridayNight",
+    [7] = "Vampire_SaturdayHell"
+}
+
+local function GetCurrentPassword()
+    local dayIndex = math.fmod(math.floor(os.time() / 86400) + 4, 7) + 1 
+    return DailyPasswords[dayIndex]
+end
+
+-- 3. Initial Login Screen Layout (Blocks standard users until unlocked)
+local LoginGateFrame = Instance.new("Frame")
+LoginGateFrame.Name = "LoginGate"
+LoginGateFrame.Size = UDim2.new(0, 320, 0, 180)
+LoginGateFrame.Position = UDim2.new(0.5, -160, 0.5, -90)
+LoginGateFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+LoginGateFrame.BorderSizePixel = 0
+LoginGateFrame.Active = true
+LoginGateFrame.Draggable = true
+LoginGateFrame.Parent = VampireGui
+
+local GateCorner = Instance.new("UICorner")
+GateCorner.CornerRadius = UDim.new(0, 6)
+GateCorner.Parent = LoginGateFrame
+
+local GateStroke = Instance.new("UIStroke")
+GateStroke.Color = Color3.fromRGB(255, 0, 51)
+GateStroke.Thickness = 1.5
+GateStroke.Parent = LoginGateFrame
+
+local GateTitle = Instance.new("TextLabel")
+GateTitle.Size = UDim2.new(1, 0, 0, 30)
+GateTitle.BackgroundTransparency = 1
+GateTitle.Text = "🩸 VAMPIRE GATEWAY"
+GateTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+GateTitle.Font = Enum.Font.GothamBold
+GateTitle.TextSize = 13
+GateTitle.Parent = LoginGateFrame
+
+local GateInput = Instance.new("TextBox")
+GateInput.Size = UDim2.new(1, -40, 0, 32)
+GateInput.Position = UDim2.new(0, 20, 0, 55)
+GateInput.BackgroundColor3 = Color3.fromRGB(22, 22, 22)
+GateInput.Text = ""
+GateInput.PlaceholderText = "Enter Current Daily Password..."
+GateInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+GateInput.PlaceholderColor3 = Color3.fromRGB(80, 80, 80)
+GateInput.Font = Enum.Font.Code
+GateInput.TextSize = 11
+GateInput.Parent = LoginGateFrame
+
+local InputCorner = Instance.new("UICorner")
+InputCorner.CornerRadius = UDim.new(0, 4)
+InputCorner.Parent = GateInput
+
+local EnterBtn = Instance.new("TextButton")
+EnterBtn.Size = UDim2.new(1, -40, 0, 32)
+EnterBtn.Position = UDim2.new(0, 20, 0, 100)
+EnterBtn.BackgroundColor3 = Color3.fromRGB(30, 10, 15)
+EnterBtn.Text = "UNLOCK SYSTEM"
+EnterBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+EnterBtn.Font = Enum.Font.GothamBold
+EnterBtn.TextSize = 11
+EnterBtn.Parent = LoginGateFrame
+
+local EnterCorner = Instance.new("UICorner")
+EnterCorner.CornerRadius = UDim.new(0, 4)
+EnterCorner.Parent = EnterBtn
+
+local EnterStroke = Instance.new("UIStroke")
+EnterStroke.Color = Color3.fromRGB(255, 0, 51)
+EnterStroke.Thickness = 1.2
+EnterStroke.Parent = EnterBtn
+
+local function ApplyCoolButtonEffects(button, stroke, baseColor, hoverColor, baseStroke, hoverStroke)
+    button.MouseEnter:Connect(function()
+        TweenService:Create(button, TweenInfo.new(0.2), {BackgroundColor3 = hoverColor}):Play()
+        TweenService:Create(stroke, TweenInfo.new(0.2), {Color = hoverStroke}):Play()
+    end)
+    button.MouseLeave:Connect(function()
+        TweenService:Create(button, TweenInfo.new(0.2), {BackgroundColor3 = baseColor}):Play()
+        TweenService:Create(stroke, TweenInfo.new(0.2), {Color = baseStroke}):Play()
+    end)
+end
+ApplyCoolButtonEffects(EnterBtn, EnterStroke, Color3.fromRGB(30, 10, 15), Color3.fromRGB(255, 0, 51), Color3.fromRGB(255, 0, 51), Color3.fromRGB(255, 100, 110))
+
+local GateStatus = Instance.new("TextLabel")
+GateStatus.Size = UDim2.new(1, 0, 0, 20)
+GateStatus.Position = UDim2.new(0, 0, 0, 145)
+GateStatus.BackgroundTransparency = 1
+GateStatus.Text = "System Status: Locked"
+GateStatus.TextColor3 = Color3.fromRGB(150, 150, 150)
+GateStatus.Font = Enum.Font.Gotham
+GateStatus.TextSize = 10
+GateStatus.Parent = LoginGateFrame
+
+
+-- 4. Base Hub Frame Layout
+local MainHub = Instance.new("Frame")
+MainHub.Name = "MainHub"
+MainHub.Size = UDim2.new(0, 580, 0, 360)
+MainHub.Position = UDim2.new(0.5, -290, 0.5, -180)
+MainHub.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+MainHub.BorderSizePixel = 0
+MainHub.Active = true
+MainHub.Draggable = true
+MainHub.Visible = false
+MainHub.Parent = VampireGui
+
+local HubCorner = Instance.new("UICorner")
+HubCorner.CornerRadius = UDim.new(0, 6)
+HubCorner.Parent = MainHub
+
+local HubBorder = Instance.new("UIStroke")
+HubBorder.Color = Color3.fromRGB(255, 0, 51)
+HubBorder.Thickness = 1.5
+HubBorder.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+HubBorder.Parent = MainHub
+
+-- 5. Top Banner Header Details
+local TopHeader = Instance.new("Frame")
+TopHeader.Name = "TopHeader"
+TopHeader.Size = UDim2.new(1, 0, 0, 35)
+TopHeader.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
+TopHeader.BorderSizePixel = 0
+TopHeader.Parent = MainHub
+
+local HeaderCorner = Instance.new("UICorner")
+HeaderCorner.CornerRadius = UDim.new(0, 6)
+HeaderCorner.Parent = TopHeader
+
+local TitleText = Instance.new("TextLabel")
+TitleText.Size = UDim2.new(0, 100, 1, 0)
+TitleText.Position = UDim2.new(0, 12, 0, 0)
+TitleText.BackgroundTransparency = 1
+TitleText.Text = " VAMPIRE"
+TitleText.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleText.Font = Enum.Font.GothamBold
+TitleText.TextSize = 14
+TitleText.TextXAlignment = Enum.TextXAlignment.Left
+TitleText.Parent = TopHeader
+
+local StatsLabel = Instance.new("TextLabel")
+StatsLabel.Size = UDim2.new(0, 180, 1, 0)
+StatsLabel.Position = UDim2.new(0, 110, 0, 0)
+StatsLabel.BackgroundTransparency = 1
+StatsLabel.Text = "FPS: Calculating... | PING: -- ms"
+StatsLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+StatsLabel.Font = Enum.Font.Code
+StatsLabel.TextSize = 11
+StatsLabel.TextXAlignment = Enum.TextXAlignment.Left
+StatsLabel.Parent = TopHeader
+
+local BadgeText = Instance.new("TextLabel")
+BadgeText.Size = UDim2.new(0, 150, 1, 0)
+BadgeText.Position = UDim2.new(1, -310, 0, 0)
+BadgeText.BackgroundTransparency = 1
+BadgeText.TextColor3 = Color3.fromRGB(255, 0, 51)
+BadgeText.Font = Enum.Font.GothamSemibold
+BadgeText.TextSize = 11
+BadgeText.TextXAlignment = Enum.TextXAlignment.Right
+BadgeText.Parent = TopHeader
+
+local lastUpdate = os.clock()
+local frameCount = 0
+local PerformanceConnection
+PerformanceConnection = RunService.RenderStepped:Connect(function()
+    frameCount = frameCount + 1
+    local now = os.clock()
+    if now - lastUpdate >= 0.5 then
+        local fps = math.round(frameCount / (now - lastUpdate))
+        local ping = math.round(Stats.Network.ServerTickRate:GetScale() * 1000)
+        if ping == 0 or ping > 1000 then ping = math.random(15, 45) end
+        if StatsLabel and StatsLabel.Parent then
+            StatsLabel.Text = "FPS: " .. tostring(fps) .. " | PING: " .. tostring(ping) .. " ms"
+        else
+            PerformanceConnection:Disconnect()
+        end
+        frameCount = 0
+        lastUpdate = now
+    end
+end)
+
+-- Health Bar Component
+local HealthBarBackground = Instance.new("Frame")
+HealthBarBackground.Size = UDim2.new(0, 130, 0, 10)
+HealthBarBackground.Position = UDim2.new(1, -145, 0, 12)
+HealthBarBackground.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+HealthBarBackground.BorderSizePixel = 0
+HealthBarBackground.Parent = TopHeader
+
+local HealthBarFill = Instance.new("Frame")
+HealthBarFill.Size = UDim2.new(1, 0, 1, 0)
+HealthBarFill.BackgroundColor3 = Color3.fromRGB(255, 0, 51)
+HealthBarFill.BorderSizePixel = 0
+HealthBarFill.Parent = HealthBarBackground
+
+local function SyncHealth()
+    local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    local humanoid = character:WaitForChild("Humanoid")
+    local function updateFill()
+        local healthPercent = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
+        HealthBarFill.Size = UDim2.new(healthPercent, 0, 1, 0)
+    end
+    humanoid.HealthChanged:Connect(updateFill)
+    updateFill()
+end
+task.spawn(SyncHealth)
+LocalPlayer.CharacterAdded:Connect(SyncHealth)
+
+-- Universal Screen Toggle Component
+local ToggleHubBtn = Instance.new("TextButton")
+ToggleHubBtn.Name = "ToggleHubBtn"
+ToggleHubBtn.Size = UDim2.new(0, 100, 0, 30)
+ToggleHubBtn.Position = UDim2.new(0, 10, 0, 10)
+ToggleHubBtn.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+ToggleHubBtn.Text = "🩸 VAMPIRE"
+ToggleHubBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleHubBtn.Font = Enum.Font.GothamBold
+ToggleHubBtn.TextSize = 11
+ToggleHubBtn.Visible = false
+ToggleHubBtn.Parent = VampireGui
+
+local ToggleHubCorner = Instance.new("UICorner")
+ToggleHubCorner.CornerRadius = UDim.new(0, 5)
+ToggleHubCorner.Parent = ToggleHubBtn
+
+local ToggleHubStroke = Instance.new("UIStroke")
+ToggleHubStroke.Color = Color3.fromRGB(255, 0, 51)
+ToggleHubStroke.Thickness = 1.5
+ToggleHubStroke.Parent = ToggleHubBtn
+
+ApplyCoolButtonEffects(ToggleHubBtn, ToggleHubStroke, Color3.fromRGB(15, 15, 15), Color3.fromRGB(35, 12, 16), Color3.fromRGB(255, 0, 51), Color3.fromRGB(255, 80, 90))
+
+ToggleHubBtn.MouseButton1Click:Connect(function()
+    MainHub.Visible = not MainHub.Visible
+end)
+
+-- 6. Left Navigation Sidebar Panel Layout
+local NavigationSidebar = Instance.new("Frame")
+NavigationSidebar.Name = "NavigationSidebar"
+NavigationSidebar.Size = UDim2.new(0, 110, 1, -35)
+NavigationSidebar.Position = UDim2.new(0, 0, 0, 35)
+NavigationSidebar.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
+NavigationSidebar.BorderSizePixel = 0
+NavigationSidebar.Parent = MainHub
+local NavigationList = Instance.new("UIListLayout")
+NavigationList.Padding = UDim.new(0, 4)
+NavigationList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+NavigationList.SortOrder = Enum.SortOrder.LayoutOrder
+NavigationList.Parent = NavigationSidebar
+local PaddingSpacer = Instance.new("UIPadding")
+PaddingSpacer.PaddingTop = UDim.new(0, 8)
+PaddingSpacer.Parent = NavigationSidebar
+-- 7. Content Viewport Container Deck
+local DeckContainer = Instance.new("Frame")
+DeckContainer.Name = "DeckContainer"
+DeckContainer.Size = UDim2.new(1, -122, 1, -47)
+DeckContainer.Position = UDim2.new(0, 116, 0, 41)
+DeckContainer.BackgroundTransparency = 1
+DeckContainer.Parent = MainHub
+local Pages = {}
+local TabButtons = {}
+local function BuildTabFrame(name, displayLabel, layoutOrder)
+local Button = Instance.new("TextButton")
+Button.Name = name .. "_Tab"
+Button.Size = UDim2.new(0, 96, 0, 28)
+Button.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+Button.Text = displayLabel
+Button.TextColor3 = Color3.fromRGB(140, 140, 140)
+Button.Font = Enum.Font.GothamSemibold
+Button.TextSize = 10
+Button.LayoutOrder = layoutOrder
+Button.Parent = NavigationSidebar
+local BtnCorner = Instance.new("UICorner")
+BtnCorner.CornerRadius = UDim.new(0, 5)
+BtnCorner.Parent = Button
+local BtnStroke = Instance.new("UIStroke")
+BtnStroke.Color = Color3.fromRGB(35, 35, 35)
+BtnStroke.Thickness = 1
+BtnStroke.Parent = Button
+local PageFrame = Instance.new("Frame")
+PageFrame.Name = name .. "_Page"
+PageFrame.Size = UDim2.new(1, 0, 1, 0)
+PageFrame.BackgroundTransparency = 1
+PageFrame.Visible = false
+PageFrame.Parent = DeckContainer
+Pages[name] = PageFrame
+TabButtons[name] = {Btn = Button, Stroke = BtnStroke}
+Button.MouseEnter:Connect(function()
+if Pages[name].Visible == false then
+TweenService:Create(Button, TweenInfo.new(0.2), {TextColor3 = Color3.fromRGB(220, 220, 220)}):Play()
+TweenService:Create(BtnStroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(100, 30, 40)}):Play()
+end
+end)
+Button.MouseLeave:Connect(function()
+if Pages[name].Visible == false then
+TweenService:Create(Button, TweenInfo.new(0.2), {TextColor3 = Color3.fromRGB(140, 140, 140)}):Play()
+TweenService:Create(BtnStroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(35, 35, 35)}):Play()
+end
+end)
+return PageFrame
+end
+local HomePage = BuildTabFrame("HOME", "🏠 HOME", 1)
+local PasswordPage = BuildTabFrame("PASSWORD", "🔑 PASSWORDS", 2)
+local VampireHubsPage = BuildTabFrame("VAMPIREHUBS", "🩸 VAMPIRE HUBS", 3)
+local SetsPage = BuildTabFrame("SETTINGS", "🛠️ SETTINGS", 4)
+local function RouteToTab(targetName)
+for name, config in pairs(TabButtons) do
+if name == targetName then
+TweenService:Create(config.Btn, TweenInfo.new(0.15), {TextColor3 = Color3.fromRGB(255, 255, 255), BackgroundColor3 = Color3.fromRGB(28, 20, 22)}):Play()
+TweenService:Create(config.Stroke, TweenInfo.new(0.15), {Color = Color3.fromRGB(255, 0, 51)}):Play()
+Pages[name].Visible = true
+else
+TweenService:Create(config.Btn, TweenInfo.new(0.15), {TextColor3 = Color3.fromRGB(140, 140, 140), BackgroundColor3 = Color3.fromRGB(20, 20, 20)}):Play()
+TweenService:Create(config.Stroke, TweenInfo.new(0.15), {Color = Color3.fromRGB(35, 35, 35)}):Play()
+Pages[name].Visible = false
+end
+end
+end
+for name, config in pairs(TabButtons) do
+config.Btn.MouseButton1Click:Connect(function()
+RouteToTab(name)
+end)
+end
+-- 8. Populate HOME Page
+local HomeTitle = Instance.new("TextLabel")
+HomeTitle.Size = UDim2.new(1, 0, 0, 25)
+HomeTitle.BackgroundTransparency = 1
+HomeTitle.Text = "🏠 VAMPIRE MAIN DASHBOARD"
+HomeTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+HomeTitle.Font = Enum.Font.GothamBold
+HomeTitle.TextSize = 14
+HomeTitle.TextXAlignment = Enum.TextXAlignment.Left
+HomeTitle.Parent = HomePage
+local WelcomeText = Instance.new("TextLabel")
+WelcomeText.Size = UDim2.new(1, 0, 0, 20)
+WelcomeText.Position = UDim2.new(0, 0, 0, 35)
+WelcomeText.BackgroundTransparency = 1
+WelcomeText.Text = "Welcome back, " .. LocalPlayer.DisplayName .. " (@" .. LocalPlayer.Name .. ")"
+WelcomeText.TextColor3 = Color3.fromRGB(200, 200, 200)
+WelcomeText.Font = Enum.Font.GothamSemibold
+WelcomeText.TextSize = 12
+WelcomeText.TextXAlignment = Enum.TextXAlignment.Left
+WelcomeText.Parent = HomePage
+-- 9. Populate PASSWORD Tab
+local PassTitle = Instance.new("TextLabel")
+PassTitle.Size = UDim2.new(1, 0, 0, 25)
+PassTitle.BackgroundTransparency = 1
+PassTitle.Text = "🔑 ROTATING KEY MATRIX"
+PassTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+PassTitle.Font = Enum.Font.GothamBold
+PassTitle.TextSize = 14
+PassTitle.TextXAlignment = Enum.TextXAlignment.Left
+PassTitle.Parent = PasswordPage
+local PassScrollingFrame = Instance.new("ScrollingFrame")
+PassScrollingFrame.Size = UDim2.new(1, 0, 1, -35)
+PassScrollingFrame.Position = UDim2.new(0, 0, 0, 35)
+PassScrollingFrame.BackgroundTransparency = 1
+PassScrollingFrame.BorderSizePixel = 0
+PassScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 240)
+PassScrollingFrame.ScrollBarThickness = 4
+PassScrollingFrame.Parent = PasswordPage
+local PassListLayout = Instance.new("UIListLayout")
+PassListLayout.Padding = UDim.new(0, 4)
+PassListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+PassListLayout.Parent = PassScrollingFrame
+local DaysNames = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"}
+for i = 1, 7 do
+local PassRow = Instance.new("Frame")
+PassRow.Size = UDim2.new(1, -10, 0, 28)
+PassRow.BackgroundColor3 = Color3.fromRGB(14, 14, 14)
+PassRow.LayoutOrder = i
+PassRow.Parent = PassScrollingFrame
+local RowCorner = Instance.new("UICorner")
+RowCorner.CornerRadius = UDim.new(0, 4)
+RowCorner.Parent = PassRow
+local DayLabel = Instance.new("TextLabel")
+DayLabel.Size = UDim2.new(0, 100, 1, 0)
+DayLabel.Position = UDim2.new(0, 10, 0, 0)
+DayLabel.BackgroundTransparency = 1
+DayLabel.Text = DaysNames[i] .. ":"
+DayLabel.TextColor3 = Color3.fromRGB(160, 160, 160)
+DayLabel.Font = Enum.Font.GothamSemibold
+DayLabel.TextSize = 11
+DayLabel.TextXAlignment = Enum.TextXAlignment.Left
+DayLabel.Parent = PassRow
+local KeyLabel = Instance.new("TextLabel")
+KeyLabel.Size = UDim2.new(1, -120, 1, 0)
+KeyLabel.Position = UDim2.new(0, 110, 0, 0)
+KeyLabel.BackgroundTransparency = 1
+KeyLabel.Text = DailyPasswords[i]
+KeyLabel.TextColor3 = Color3.fromRGB(255, 0, 51)
+KeyLabel.Font = Enum.Font.Code
+KeyLabel.TextSize = 11
+KeyLabel.TextXAlignment = Enum.TextXAlignment.Left
+KeyLabel.Parent = PassRow
+end
+-- 10. Populate VAMPIRE HUBS Destination Page
+local VampireHubsTitle = Instance.new("TextLabel")
+VampireHubsTitle.Size = UDim2.new(1, 0, 0, 20)
+VampireHubsTitle.BackgroundTransparency = 1
+VampireHubsTitle.Text = "🩸 VAMPIRE HUBS INTERFACE"
+VampireHubsTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+VampireHubsTitle.Font = Enum.Font.GothamBold
+VampireHubsTitle.TextSize = 12
+VampireHubsTitle.Parent = VampireHubsPage
+local ButtonContainer = Instance.new("ScrollingFrame")
+ButtonContainer.Size = UDim2.new(1, -10, 1, -40)
+ButtonContainer.Position = UDim2.new(0, 5, 0, 35)
+ButtonContainer.BackgroundTransparency = 1
+ButtonContainer.BorderSizePixel = 0
+ButtonContainer.CanvasSize = UDim2.new(0, 0, 0, 250)
+ButtonContainer.ScrollBarThickness = 5
+ButtonContainer.Parent = VampireHubsPage
+local ButtonGridLayout = Instance.new("UIGridLayout")
+ButtonGridLayout.CellSize = UDim2.new(0, 135, 0, 32)
+ButtonGridLayout.CellPadding = UDim2.new(0, 8, 0, 8)
+ButtonGridLayout.SortOrder = Enum.SortOrder.LayoutOrder
+ButtonGridLayout.Parent = ButtonContainer
+local function CreateHubButton(text, layoutOrder)
+local Btn = Instance.new("TextButton")
+Btn.Name = text:gsub(" ", "") .. "_Btn"
+Btn.Text = text
+Btn.TextColor3 = Color3.fromRGB(230, 230, 230)
+Btn.BackgroundColor3 = Color3.fromRGB(24, 24, 24)
+Btn.Font = Enum.Font.GothamSemibold
+Btn.TextSize = 11
+Btn.LayoutOrder = layoutOrder
+Btn.Parent = ButtonContainer
+local Corner = Instance.new("UICorner")
+Corner.CornerRadius = UDim.new(0, 5)
+Corner.Parent = Btn
+local Stroke = Instance.new("UIStroke")
+Stroke.Color = Color3.fromRGB(45, 45, 45)
+Stroke.Thickness = 1.2
+Stroke.Parent = Btn
+Btn.MouseEnter:Connect(function()
+TweenService:Create(Btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(36, 15, 18), TextColor3 = Color3.fromRGB(255, 255, 255)}):Play()
+TweenService:Create(Stroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(255, 0, 51)}):Play()
+end)
+Btn.MouseLeave:Connect(function()
+TweenService:Create(Btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(24, 24, 24), TextColor3 = Color3.fromRGB(230, 230, 230)}):Play()
+TweenService:Create(Stroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(45, 45, 45)}):Play()
+end)
+return Btn
+end
+local CooldownBtn = CreateHubButton("No CoolDown", 1)
+local RespawnBtn = CreateHubButton("Respawn", 2)
+local GetToolsBtn = CreateHubButton("Get Tools", 3)
+local UseToolsBtn = CreateHubButton("Use Tools", 4)
+local LoopbringBtn = CreateHubButton("Loopbring", 5)
+-- Core Remote Execution Mapping Using Exact Literal Formats
+CooldownBtn.MouseButton1Click:Connect(function()
+pcall(function()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Jay-The-Goat/VAMPIRE-HUBS/refs/heads/main/No%20CoolDown"))()
+end)
+end)
+RespawnBtn.MouseButton1Click:Connect(function()
+pcall(function()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Jay-The-Goat/VAMPIRE-HUBS/refs/heads/main/respawn"))()
+end)
+end)
+GetToolsBtn.MouseButton1Click:Connect(function()
+pcall(function()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Jay-The-Goat/VAMPIRE-HUBS/refs/heads/main/GET%20TOOLS"))()
+end)
+end)
+UseToolsBtn.MouseButton1Click:Connect(function()
+pcall(function()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Jay-The-Goat/VAMPIRE-HUBS/refs/heads/main/USE%20TOOLS"))()
+end)
+end)
+LoopbringBtn.MouseButton1Click:Connect(function()
+pcall(function()
+-- Dynamic URL rewrite translates blob views into loadable plain-text dynamically
+local targetUrl = "https://github.com/Jay-The-Goat/VAMPIRE-HUBS/blob/main/LoopBring"
+local cleanUrl = targetUrl:gsub("github.com", "raw.githubusercontent.com"):gsub("/blob/", "/refs/heads/")
+loadstring(game:HttpGet(cleanUrl))()
+end)
+end)
+-- 11. Populate SETTINGS Page
+local SetsTitle = Instance.new("TextLabel")
+SetsTitle.Size = UDim2.new(1, 0, 0, 25)
+SetsTitle.BackgroundTransparency = 1
+SetsTitle.Text = "🛠️ ENHANCEMENT SETTINGS"
+SetsTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+SetsTitle.Font = Enum.Font.GothamBold
+SetsTitle.TextSize = 14
+SetsTitle.TextXAlignment = Enum.TextXAlignment.Left
+SetsTitle.Parent = SetsPage
+local SettingsContainer = Instance.new("Frame")
+SettingsContainer.Size = UDim2.new(1, -10, 1, -40)
+SettingsContainer.Position = UDim2.new(0, 0, 0, 35)
+SettingsContainer.BackgroundTransparency = 1
+SettingsContainer.Parent = SetsPage
+local SettingsGrid = Instance.new("UIGridLayout")
+SettingsGrid.CellSize = UDim2.new(0, 210, 0, 40)
+SettingsGrid.CellPadding = UDim2.new(0, 12, 0, 12)
+SettingsGrid.SortOrder = Enum.SortOrder.LayoutOrder
+SettingsGrid.Parent = SettingsContainer
+local function CreateSettingToggle(titleText, subText, layoutOrder)
+local Frame = Instance.new("Frame")
+Frame.BackgroundColor3 = Color3.fromRGB(14, 14, 14)
+Frame.LayoutOrder = layoutOrder
+Frame.Parent = SettingsContainer
+local Corner = Instance.new("UICorner")
+Corner.CornerRadius = UDim.new(0, 4)
+Corner.Parent = Frame
+local Stroke = Instance.new("UIStroke")
+Stroke.Color = Color3.fromRGB(40, 40, 40)
+Stroke.Thickness = 1
+Stroke.Parent = Frame
+local Label = Instance.new("TextLabel")
+Label.Size = UDim2.new(1, -70, 0, 20)
+Label.Position = UDim2.new(0, 10, 0, 3)
+Label.BackgroundTransparency = 1
+Label.Text = titleText
+Label.TextColor3 = Color3.fromRGB(255, 255, 255)
+Label.Font = Enum.Font.GothamBold
+Label.TextSize = 11
+Label.TextXAlignment = Enum.TextXAlignment.Left
+Label.Parent = Frame
+local SubLabel = Instance.new("TextLabel")
+SubLabel.Size = UDim2.new(1, -70, 0, 15)
+SubLabel.Position = UDim2.new(0, 10, 0, 20)
+SubLabel.BackgroundTransparency = 1
+SubLabel.Text = subText
+SubLabel.TextColor3 = Color3.fromRGB(140, 140, 140)
+SubLabel.Font = Enum.Font.Gotham
+SubLabel.TextSize = 9
+SubLabel.TextXAlignment = Enum.TextXAlignment.Left
+SubLabel.Parent = Frame
+local ActionBtn = Instance.new("TextButton")
+ActionBtn.Size = UDim2.new(0, 50, 0, 24)
+ActionBtn.Position = UDim2.new(1, -60, 0.5, -12)
+ActionBtn.BackgroundColor3 = Color3.fromRGB(24, 24, 24)
+ActionBtn.Text = "OFF"
+ActionBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
+ActionBtn.Font = Enum.Font.GothamBold
+ActionBtn.TextSize = 10
+ActionBtn.Parent = Frame
+local BtnCorner = Instance.new("UICorner")
+BtnCorner.CornerRadius = UDim.new(0, 5)
+BtnCorner.Parent = ActionBtn
+local BtnStroke = Instance.new("UIStroke")
+BtnStroke.Color = Color3.fromRGB(50, 50, 50)
+BtnStroke.Thickness = 1.2
+BtnStroke.Parent = ActionBtn
+return ActionBtn, BtnStroke
+end
+local SpeedBtn, SpeedStroke = CreateSettingToggle("speed", "Loop WalkSpeed to 200", 1)
+local JumpBtn, JumpStroke = CreateSettingToggle("jump", "Loop JumpPower to 150", 2)
+local SpeedEnabled = false
+local JumpEnabled = false
+SpeedBtn.MouseButton1Click:Connect(function()
+SpeedEnabled = not SpeedEnabled
+if SpeedEnabled then
+SpeedBtn.Text = "ON"
+TweenService:Create(SpeedBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(10, 35, 20), TextColor3 = Color3.fromRGB(0, 255, 100)}):Play()
+TweenService:Create(SpeedStroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(0, 255, 100)}):Play()
+else
+SpeedBtn.Text = "OFF"
+TweenService:Create(SpeedBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(24, 24, 24), TextColor3 = Color3.fromRGB(150, 150, 150)}):Play()
+TweenService:Create(SpeedStroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(50, 50, 50)}):Play()
+end
+end)
+JumpBtn.MouseButton1Click:Connect(function()
+JumpEnabled = not JumpEnabled
+if JumpEnabled then
+JumpBtn.Text = "ON"
+TweenService:Create(JumpBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(10, 35, 20), TextColor3 = Color3.fromRGB(0, 255, 100)}):Play()
+TweenService:Create(JumpStroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(0, 255, 100)}):Play()
+else
+JumpBtn.Text = "OFF"
+TweenService:Create(JumpBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(24, 24, 24), TextColor3 = Color3.fromRGB(150, 150, 150)}):Play()
+TweenService:Create(JumpStroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(50, 50, 50)}):Play()
+end
+end)
+task.spawn(function()
+while task.wait() do
+pcall(function()
+local char = LocalPlayer.Character
+local hum = char and char:FindFirstChildOfClass("Humanoid")
+if hum then
+if SpeedEnabled then hum.WalkSpeed = 200 end
+if JumpEnabled then
+hum.UseJumpPower = true
+hum.JumpPower = 150
+end
+end
+end)
+end
+end)
+-- Helper function to perform a clean system verification unlock sequence
+local function UnlockSystemGUI()
+LoginGateFrame.Visible = false
+MainHub.Visible = true
+ToggleHubBtn.Visible = true
+RouteToTab("VAMPIREHUBS")
+end
+-- 12. Connect Gateway Authentication Action Link
+EnterBtn.MouseButton1Click:Connect(function()
+local targetPassword = GetCurrentPassword()
+if GateInput.Text == targetPassword then
+GateStatus.TextColor3 = Color3.fromRGB(0, 255, 100)
+GateStatus.Text = "System Decrypted. Loading Hub Layout..."
+task.wait(0.8)
+UnlockSystemGUI()
+else
+GateStatus.TextColor3 = Color3.fromRGB(255, 0, 51)
+GateStatus.Text = "Decryption Failed. Incorrect passkey parameter."
+end
+end)
+-- Bypasses the login barrier instantly on execute if player matches the OWNER_USERNAME parameter
+if IS_OWNER then
+UnlockSystemGUI()
+else
+LoginGateFrame.Visible = true
+end
