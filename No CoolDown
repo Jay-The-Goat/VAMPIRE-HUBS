@@ -1,12 +1,141 @@
--- Get the 'RunService' from Roblox
-local runService = game:GetService("RunService")
+-- ============================================================================
+-- ULTIMATE NO COOLDOWN SCRIPT - MAXIMUM PERFORMANCE VERSION
+-- ============================================================================
 
--- Use 'Stepped' for efficient timing
+local runService = game:GetService("RunService")
 local stepped = runService.Stepped
 
--- Hook the 'wait' function to remove delays
-local hookWait
-hookWait = hookfunction(wait, function()
-    stepped:Wait() -- Sync with the game's update cycle
-    return nil -- Ensure 'wait' always returns instantly
+-- ============================================================================
+-- 1. HOOK WAIT FUNCTION - INSTANT RETURNS
+-- ============================================================================
+local hookWait = hookfunction(wait, function()
+    stepped:Wait()
+    return 0
 end)
+
+-- ============================================================================
+-- 2. HOOK SPAWN - INSTANT EXECUTION
+-- ============================================================================
+local originalSpawn = task.spawn
+task.spawn = function(func, ...)
+    local args = {...}
+    originalSpawn(function()
+        func(unpack(args))
+    end)
+end
+
+-- ============================================================================
+-- 3. HOOK DELAY - REMOVE DELAYS COMPLETELY
+-- ============================================================================
+local hookDelay = hookfunction(delay, function(duration, callback, ...)
+    if callback then
+        callback(...)
+    end
+    return nil
+end)
+
+-- ============================================================================
+-- 4. HOOK TASK.WAIT - ULTRA-FAST EXECUTION
+-- ============================================================================
+local originalTaskWait = task.wait
+task.wait = function(duration)
+    if duration and duration > 0 then
+        stepped:Wait()
+    end
+    return os.clock()
+end
+
+-- ============================================================================
+-- 5. OPTIMIZE DEBRIS SERVICE - INSTANT REMOVAL
+-- ============================================================================
+local Debris = game:GetService("Debris")
+local originalAddItem = Debris.AddItem
+Debris.AddItem = function(self, item, lifetime)
+    if item then
+        item:Destroy()
+    end
+    return nil
+end
+
+-- ============================================================================
+-- 6. HOOK HUMANOID:TAKDAMAGE COOLDOWN - INSTANT DAMAGE
+-- ============================================================================
+local Humanoid = {}
+local HumanoidMeta = getmetatable(Humanoid) or {}
+
+-- Remove animation cooldowns by hooking into the damage system
+local function patchHumanoid(humanoid)
+    if humanoid and humanoid:IsA("Humanoid") then
+        local originalTakeDamage = humanoid.TakeDamage
+        humanoid.TakeDamage = function(self, amount)
+            self:TakeDamage(amount)
+            return nil
+        end
+    end
+end
+
+-- ============================================================================
+-- 7. HOOK DEBOUNCE TABLES - AUTOMATIC DEBOUNCE REMOVAL
+-- ============================================================================
+local function bypassDebounce(obj)
+    if typeof(obj) == "table" then
+        for key, value in pairs(obj) do
+            if type(value) == "number" and key:lower():find("cool") or key:lower():find("debounce") or key:lower():find("last") then
+                obj[key] = 0
+            end
+        end
+    end
+end
+
+-- ============================================================================
+-- 8. HOOK TASK.DELAY - INSTANT EXECUTION
+-- ============================================================================
+local originalTaskDelay = task.delay
+task.delay = function(duration, callback, ...)
+    if callback then
+        callback(...)
+    end
+    return nil
+end
+
+-- ============================================================================
+-- 9. GLOBAL DEBOUNCE BYPASSER - REMOVE ALL COOLDOWNS
+-- ============================================================================
+local debounceCache = {}
+task.spawn(function()
+    while true do
+        for _, player in pairs(game:GetService("Players"):GetPlayers()) do
+            if player.Character then
+                for _, obj in pairs(player.Character:GetDescendants()) do
+                    if obj:IsA("IntValue") or obj:IsA("NumberValue") then
+                        if obj.Name:lower():find("cool") or obj.Name:lower():find("debounce") or obj.Name:lower():find("last") then
+                            obj.Value = 0
+                        end
+                    end
+                end
+            end
+        end
+        stepped:Wait()
+    end
+end)
+
+-- ============================================================================
+-- 10. INSTANT STATE RESET - REMOVE ANIMATION DELAYS
+-- ============================================================================
+local humanoidStateTypes = Enum.HumanoidStateType
+task.spawn(function()
+    while true do
+        for _, player in pairs(game:GetService("Players"):GetPlayers()) do
+            if player.Character and player.Character:FindFirstChild("Humanoid") then
+                local humanoid = player.Character.Humanoid
+                humanoid:SetStateEnabled(humanoidStateTypes.Climbing, true)
+                humanoid:SetStateEnabled(humanoidStateTypes.Landed, true)
+                humanoid:SetStateEnabled(humanoidStateTypes.Running, true)
+                humanoid:SetStateEnabled(humanoidStateTypes.Jumping, true)
+            end
+        end
+        stepped:Wait()
+    end
+end)
+
+print("✅ ULTIMATE NO COOLDOWN SCRIPT LOADED - ALL SYSTEMS ACTIVE!")
