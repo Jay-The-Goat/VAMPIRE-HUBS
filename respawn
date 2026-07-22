@@ -1,0 +1,120 @@
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
+local LocalPlayer = Players.LocalPlayer
+
+-- Force engine to remove the default 3-second spawn queue delay
+pcall(function()
+    Players.RespawnTime = 0
+    settings().Physics.ThrottleAdjustTime = 0 
+end)
+
+_G.RespawnScript = _G.RespawnScript or { Active = false, Connections = {} }
+
+local function disconnectAll()
+    for _, connection in ipairs(_G.RespawnScript.Connections) do
+        if connection and connection.Connected then
+            connection:Disconnect()
+        end
+    end
+    _G.RespawnScript.Connections = {}
+end
+
+-- TRIPLE SPEED FORCE RESPAWN (Multi-threaded assault)
+local function forceRespawn()
+    local char = LocalPlayer.Character
+    if not char then return end
+
+    task.spawn(function()
+        if ReplicatedStorage:FindFirstChild("Guide") then
+            ReplicatedStorage.Guide:FireServer()
+        end
+        if ReplicatedStorage:FindFirstChild("ResetCharacter") then
+            ReplicatedStorage.ResetCharacter:FireServer()
+        end
+        local remote = ReplicatedStorage:FindFirstChild("Reset", true) or ReplicatedStorage:FindFirstChild("Respawn", true)
+        if remote and remote:IsA("RemoteEvent") then
+            remote:FireServer()
+        end
+    end)
+
+    task.spawn(function()
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            humanoid:Destroy() 
+        end
+        char:ClearAllChildren() 
+        LocalPlayer.Character = nil 
+    end)
+end
+
+local function onCharacterAdded(character)
+    if not _G.RespawnScript.Active then return end
+
+    local humanoid = character:FindFirstChildOfClass("Humanoid") or character:WaitForChild("Humanoid", 1)
+    if not humanoid then return end
+
+    local hasRespawned = false
+
+    local healthConnection = humanoid:GetPropertyChangedSignal("Health"):Connect(function()
+        if humanoid.Health <= 0 and _G.RespawnScript.Active and not hasRespawned then
+            hasRespawned = true
+            forceRespawn()
+        end
+    end)
+    table.insert(_G.RespawnScript.Connections, healthConnection)
+end
+
+-- GUI SETUP (Small, Pure Black & Red, Fixed Position)
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "RespawnToggleGui"
+screenGui.ResetOnSpawn = false
+
+local success, _ = pcall(function() screenGui.Parent = CoreGui end)
+if not success then screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+
+local toggleButton = Instance.new("TextButton")
+toggleButton.Name = "ToggleButton"
+toggleButton.Parent = screenGui
+toggleButton.Size = UDim2.new(0, 95, 0, 35) 
+toggleButton.Position = UDim2.new(0, 20, 0.5, -17) -- Locked on the left middle side of screen
+toggleButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- Pure Black
+toggleButton.BorderSizePixel = 1
+toggleButton.BorderColor3 = Color3.fromRGB(255, 0, 0) -- Pure Red Border
+toggleButton.Text = "FAST: OFF"
+toggleButton.TextColor3 = Color3.fromRGB(255, 0, 0) -- Pure Red Text
+toggleButton.Font = Enum.Font.SourceSansBold
+toggleButton.TextSize = 14
+toggleButton.Active = true
+toggleButton.Selectable = true
+
+-- Toggle function handler
+local function toggleScript()
+    if _G.RespawnScript.Active then
+        _G.RespawnScript.Active = false
+        disconnectAll()
+        toggleButton.Text = "FAST: OFF"
+    else
+        _G.RespawnScript.Active = true
+        toggleButton.Text = "FAST: ON"
+
+        local charAddedConnection = LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
+        table.insert(_G.RespawnScript.Connections, charAddedConnection)
+
+        local keyConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+            if not gameProcessed and input.KeyCode == Enum.KeyCode.R then
+                forceRespawn()
+            end
+        end)
+        table.insert(_G.RespawnScript.Connections, keyConnection)
+
+        if LocalPlayer.Character then
+            onCharacterAdded(LocalPlayer.Character)
+        else
+            forceRespawn()
+        end
+    end
+end
+
+toggleButton.MouseButton1Click:Connect(toggleScript)
