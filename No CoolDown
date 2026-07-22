@@ -1,15 +1,24 @@
--- Cache service and signal for maximum execution speed
+-- ⚡ No Cooldown
+
 local RunService = game:GetService("RunService")
-local Stepped = RunService.Stepped
 
--- Cache the original wait to prevent infinite loops during hooking
-local oldWait = wait
-
--- Hook the global wait function exactly how you intended
-hookfunction(wait, function(duration)
-    -- Sync perfectly with the game's physics simulation frame
-    Stepped:Wait() 
-    
-    -- Return 0 to prevent external scripts from crashing on nil values
-    return 0
+--================================================
+-- ⚡ GLOBAL COOLDOWN BREAKER (Original Power)
+--================================================
+hookfunction(wait, function()
+    return RunService.PostSimulation:Wait()
 end)
+
+hookfunction(task.wait, function()
+    return RunService.PostSimulation:Wait()
+end)
+
+hookfunction(delay, function(_,func)
+    task.spawn(func)
+end)
+
+hookfunction(spawn, function(func)
+    task.spawn(func)
+end)
+
+print("⚡ No Cooldown Running")
