@@ -1,0 +1,249 @@
+-- Crear elementos de GUI
+local screenGui = Instance.new("ScreenGui")
+local toolButton = Instance.new("TextButton")
+local stroke = Instance.new("UIStroke") -- Borde de neón
+local uicorner = Instance.new("UICorner") -- Esquinas redondeadas
+local uiGradient = Instance.new("UIGradient") -- Degradado de texto para look premium
+
+-- Configurar ScreenGui
+screenGui.Name = "CustomToolGui"
+screenGui.Parent = game.CoreGui
+screenGui.ResetOnSpawn = false
+
+-- Configurar botón (Diseño Cyberpunk / Dark Glow)
+toolButton.Name = "Usetools"
+toolButton.Parent = screenGui
+toolButton.Position = UDim2.new(0.85, 0, 0.7, 0)
+toolButton.Size = UDim2.new(0, 110, 0, 40) -- Un poco más grande para mejor presencia
+toolButton.BackgroundColor3 = Color3.fromRGB(15, 15, 20) -- Fondo negro oscuro con tinte azulado
+toolButton.BackgroundTransparency = 0.2 -- Ligeramente translúcido (efecto vidrio)
+toolButton.Font = Enum.Font.GothamBold -- Fuente gruesa y moderna
+toolButton.Text = "SPAM-OFF"
+toolButton.TextColor3 = Color3.fromRGB(255, 255, 255) -- Base blanca que se mezcla con el degradado
+toolButton.TextSize = 14
+toolButton.TextScaled = false -- Desactivado para mantener consistencia visual limpia
+toolButton.ClipsDescendants = true
+
+-- Degradado de texto (Efecto neón rojo metálico)
+uiGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 70, 70)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(180, 0, 0))
+})
+uiGradient.Parent = toolButton
+
+-- Configurar UIStroke (Borde con brillo de neón)
+stroke.Parent = toolButton
+stroke.Color = Color3.fromRGB(255, 40, 40)
+stroke.Thickness = 2
+stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+-- Añadir esquinas redondeadas suaves
+uicorner.Parent = toolButton
+uicorner.CornerRadius = UDim.new(0, 10)
+
+-- ==========================================
+-- EFECTOS VISUALES / ANIMACIONES AL PASAR EL MOUSE
+-- ==========================================
+local TweenService = game:GetService("TweenService")
+local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+toolButton.MouseEnter:Connect(function()
+    TweenService:Create(toolButton, tweenInfo, {BackgroundTransparency = 0.05}):Play()
+    TweenService:Create(stroke, tweenInfo, {Thickness = 2.5, Color = Color3.fromRGB(255, 100, 100)}):Play()
+end)
+
+toolButton.MouseLeave:Connect(function()
+    TweenService:Create(toolButton, tweenInfo, {BackgroundTransparency = 0.2}):Play()
+    TweenService:Create(stroke, tweenInfo, {Thickness = 2, Color = Color3.fromRGB(255, 40, 40)}):Play()
+end)
+
+-- ==========================================
+-- SCRIPT PREMIUM PARA ARRASTRAR EL BOTÓN (MOBILE & PC)
+-- ==========================================
+local UserInputService = game:GetService("UserInputService")
+local dragging, dragInput, dragStart, startPos
+
+local function update(input)
+    local delta = input.Position - dragStart
+    -- Movimiento suavizado usando Tweens para que se sienta premium al arrastrar
+    local targetPos = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    TweenService:Create(toolButton, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = targetPos}):Play()
+end
+
+toolButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = toolButton.Position
+        
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+toolButton.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        update(input)
+    end
+end)
+-- ==========================================
+
+-- Variables de estado
+local clipOn = false
+local noclipConnection = nil
+
+-- Función para activar/desactivar noclip
+local function toggleNoclip(enabled)
+    if noclipConnection then
+        noclipConnection:Disconnect()
+        noclipConnection = nil
+    end
+    if enabled then
+        noclipConnection = game:GetService("RunService").Stepped:Connect(function()
+            local player = game.Players.LocalPlayer
+            if player and player.Character then
+                for _, part in ipairs(player.Character:GetDescendants()) do
+                    if part:IsA("BasePart") and part.CanCollide then
+                        part.CanCollide = false
+                    end
+                end
+            end
+        end)
+    end
+end
+
+-- Función para desequipar herramientas
+local function desequipTools()
+    local player = game.Players.LocalPlayer
+    if player and player.Character then
+        for _, tool in ipairs(player.Character:GetChildren()) do
+            if tool:IsA("Tool") then
+                tool.Parent = player.Backpack
+            end
+        end
+    end
+end
+
+-- Alternar spam y noclip
+local function toggleSpam(enabled)
+    clipOn = enabled
+    toolButton.Text = clipOn and "SPAM-OFF" or "USE TOOLS"
+    
+    -- Animación visual drástica al encender o apagar
+    if clipOn then
+        -- Estado Activo: El borde brilla intensamente y el fondo se oscurece
+        TweenService:Create(stroke, tweenInfo, {Color = Color3.fromRGB(255, 0, 0)}):Play()
+        uiGradient.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 100, 100)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 30, 30))
+        })
+    else
+        -- Estado Inactivo: Colores más oscuros/apagados de espera
+        TweenService:Create(stroke, tweenInfo, {Color = Color3.fromRGB(150, 20, 20)}):Play()
+        uiGradient.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(180, 30, 30)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(100, 0, 0))
+        })
+    end
+
+    -- Activar/desactivar noclip
+    toggleNoclip(clipOn)
+
+    -- Si se desactiva, guardar herramientas
+    if not clipOn then
+        desequipTools()
+    end
+end
+
+-- Conectar botón con la función de alternar
+toolButton.MouseButton1Click:Connect(function()
+    toggleSpam(not clipOn)
+end)
+
+-- Bucle optimizado para equipar y activar herramientas
+game:GetService("RunService").Heartbeat:Connect(function()
+    if clipOn then
+        local player = game.Players.LocalPlayer
+        if player and player.Character then
+            for _, tool in ipairs(player.Backpack:GetChildren()) do
+                if tool:IsA("Tool") then
+                    tool.Parent = player.Character
+                    task.spawn(function()
+                        while clipOn and tool.Parent == player.Character do
+                            pcall(function()
+                                tool:Activate()
+                            end)
+                            task.wait() -- Máxima velocidad
+                        end
+                    end)
+                end
+            end
+        end
+    end
+end)
+
+-- Variables de servicio
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
+
+-- Altura a la que flotarán las herramientas cuando el jugador muera
+local deathHeight = 10
+
+-- Función para detectar si el jugador está muerto
+local function IsPlayerDead()
+    local char = player.Character
+    if not char then return false end
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    return humanoid and humanoid.Health <= 0
+end
+
+-- Función para hacer flotar las herramientas solo cuando el jugador muere
+local function FloatToolsOnDeath()
+    if not player.Character then return end
+    for _, tool in ipairs(player.Character:GetChildren()) do
+        if tool:IsA("Tool") then
+            local handle = tool:FindFirstChild("Handle")
+            if handle then
+                local bodyPosition = handle:FindFirstChild("BodyPosition")
+                if IsPlayerDead() then    
+                    if not bodyPosition then    
+                        bodyPosition = Instance.new("BodyPosition")    
+                        bodyPosition.MaxForce = Vector3.new(400000, 400000, 400000)    
+                        bodyPosition.D = 10    
+                        bodyPosition.Parent = handle    
+                    end    
+                    local rootPart = player.Character:FindFirstChild("HumanoidRootPart")    
+                    if rootPart then    
+                        bodyPosition.Position = rootPart.Position + Vector3.new(0, deathHeight, 0) -- Flotar 10 studs arriba    
+                    end    
+                else    
+                    -- Si el jugador revive, eliminar la flotación de las herramientas    
+                    if bodyPosition then    
+                        bodyPosition:Destroy()    
+                    end    
+                end    
+            end    
+        end
+    end
+end
+
+-- Monitorear el estado del jugador y aplicar flotación cuando muera
+RunService.Heartbeat:Connect(function()
+    FloatToolsOnDeath()
+end)
+
+-- Restaurar gravedad al reaparecer
+player.CharacterAdded:Connect(function(character)
+    task.wait(1) -- Esperar un momento para que se cargue el personaje
+    FloatToolsOnDeath() -- Verificar si debe aplicar o quitar la flotación
+end)
