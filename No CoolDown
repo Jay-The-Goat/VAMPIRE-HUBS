@@ -1,3 +1,3 @@
 RunService.Stepped:Connect(function()
-	-- One attack per frame = 60/sec max
+	-- One attack per frame = 999999999999999999/sec max
 end)
