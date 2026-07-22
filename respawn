@@ -6,7 +6,7 @@ local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 
 -- ============================================================================
--- ULTIMATE RESPAWN SCRIPT - MAXIMUM PERFORMANCE VERSION
+-- ULTIMATE RESPAWN SCRIPT - INSTANT RESPAWN WHEN KILLED (NO AUTO-KILL)
 -- ============================================================================
 
 -- Force engine to remove the default 3-second spawn queue delay
@@ -32,8 +32,10 @@ end
 -- ============================================================================
 local function instantServerSync()
     pcall(function()
-        LocalPlayer.Character.Head.CanCollide = false
-        LocalPlayer.Character.HumanoidRootPart.CanCollide = false
+        if LocalPlayer.Character then
+            LocalPlayer.Character.Head.CanCollide = false
+            LocalPlayer.Character.HumanoidRootPart.CanCollide = false
+        end
     end)
 end
 
@@ -55,43 +57,26 @@ local function findAllRespawnMethods()
         end
     end
     
-    searchDescendants(ReplicatedStorage)
-    searchDescendants(LocalPlayer)
+    pcall(function() searchDescendants(ReplicatedStorage) end)
+    pcall(function() searchDescendants(LocalPlayer) end)
     
     return methods
 end
 
 -- ============================================================================
--- 3. HUMANOID INSTANT DESTRUCTION - FASTER DEATH DETECTION
+-- 3. INSTANT RESPAWN - ONLY TRIGGERS WHEN PLAYER DIES
 -- ============================================================================
-local function instantHumanoidDestruction(char)
-    if not char then return end
-    
-    task.spawn(function()
-        local humanoid = char:FindFirstChildOfClass("Humanoid")
-        if humanoid then
-            humanoid.Health = 0
-            task.wait(0.01)
-            humanoid:Destroy()
-        end
-    end)
-end
-
--- ============================================================================
--- 4. PARALLEL PROCESSING - 5X RESPAWN THREADS SIMULTANEOUSLY
--- ============================================================================
-local function tripleSpeedForceRespawn()
+local function instantRespawn()
     local char = LocalPlayer.Character
     if not char then return end
     
     -- Prevent respawn spam
-    if os.clock() - _G.RespawnScript.RespawnBuffer < 0.05 then
+    if os.clock() - _G.RespawnScript.RespawnBuffer < 0.1 then
         return
     end
     _G.RespawnScript.RespawnBuffer = os.clock()
     
     instantServerSync()
-    instantHumanoidDestruction(char)
     
     -- Thread 1: Fire all remote events
     task.spawn(function()
@@ -114,28 +99,9 @@ local function tripleSpeedForceRespawn()
         end)
     end)
     
-    -- Thread 3: Humanoid destruction
+    -- Thread 3: Reset character to nil to trigger respawn
     task.spawn(function()
-        local humanoid = char:FindFirstChildOfClass("Humanoid")
-        if humanoid then
-            humanoid.Health = 0
-        end
-    end)
-    
-    -- Thread 4: Character clear
-    task.spawn(function()
-        pcall(function()
-            for _, child in pairs(char:GetChildren()) do
-                if child.Name ~= "Humanoid" then
-                    child:Destroy()
-                end
-            end
-        end)
-    end)
-    
-    -- Thread 5: Direct character nil
-    task.spawn(function()
-        task.wait(0.01)
+        task.wait(0.05)
         pcall(function()
             LocalPlayer.Character = nil
         end)
@@ -143,61 +109,7 @@ local function tripleSpeedForceRespawn()
 end
 
 -- ============================================================================
--- 5. CHARACTER CACHE CLEANER - INSTANT MEMORY CLEANUP
--- ============================================================================
-local function cleanCharacterCache()
-    task.spawn(function()
-        while _G.RespawnScript.Active do
-            pcall(function()
-                if LocalPlayer.Character then
-                    local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-                    if humanoid and humanoid.Health == 0 then
-                        tripleSpeedForceRespawn()
-                    end
-                end
-            end)
-            RunService.Heartbeat:Wait()
-        end
-    end)
-end
-
--- ============================================================================
--- 6. DIRECT RESPAWN API - BYPASS NORMAL RESPAWN SYSTEM
--- ============================================================================
-local function directRespawnAPI()
-    task.spawn(function()
-        while _G.RespawnScript.Active do
-            pcall(function()
-                if LocalPlayer.Character then
-                    local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-                    if humanoid and humanoid.Health > 0 then
-                        tripleSpeedForceRespawn()
-                    end
-                end
-            end)
-            task.wait(0.5) -- Check every 0.5 seconds
-        end
-    end)
-end
-
--- ============================================================================
--- 7. RESPAWN BUFFER - PREVENT RESPAWN SPAM BLOCKING
--- ============================================================================
-local RespawnBuffer = {
-    LastRespawn = 0,
-    BufferTime = 0.05
-}
-
-local function canRespawn()
-    if os.clock() - RespawnBuffer.LastRespawn >= RespawnBuffer.BufferTime then
-        RespawnBuffer.LastRespawn = os.clock()
-        return true
-    end
-    return false
-end
-
--- ============================================================================
--- 8. PHYSICS RESET - INSTANT MOMENTUM CLEAR
+-- 4. PHYSICS RESET - INSTANT MOMENTUM CLEAR
 -- ============================================================================
 local function resetPhysics(character)
     if not character then return end
@@ -219,7 +131,7 @@ local function resetPhysics(character)
 end
 
 -- ============================================================================
--- 9. RAGDOLL PREVENTION - STAY UPRIGHT INSTANTLY
+-- 5. RAGDOLL PREVENTION - STAY UPRIGHT INSTANTLY
 -- ============================================================================
 local function preventRagdoll(character)
     if not character then return end
@@ -239,27 +151,22 @@ local function preventRagdoll(character)
 end
 
 -- ============================================================================
--- 10. AUTO-RESPAWN ACCELERATION - CONTINUOUS BACKGROUND RESPAWN
+-- 6. MONITOR HEALTH AND RESPAWN WHEN KILLED
 -- ============================================================================
-local function autoRespawnAcceleration()
+local function monitorHealth()
     task.spawn(function()
         while _G.RespawnScript.Active do
-            if canRespawn() then
-                pcall(function()
-                    if LocalPlayer.Character then
-                        local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-                        if humanoid then
-                            if humanoid.Health <= 0 then
-                                tripleSpeedForceRespawn()
-                            else
-                                resetPhysics(LocalPlayer.Character)
-                                preventRagdoll(LocalPlayer.Character)
-                            end
-                        end
+            pcall(function()
+                if LocalPlayer.Character then
+                    local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+                    if humanoid and humanoid.Health <= 0 then
+                        -- Player is dead, trigger instant respawn
+                        instantRespawn()
+                        task.wait(0.5) -- Wait before checking again
                     end
-                end)
-            end
-            RunService.RenderStepped:Wait()
+                end
+            end)
+            RunService.Heartbeat:Wait()
         end
     end)
 end
@@ -273,21 +180,6 @@ local function onCharacterAdded(character)
     task.wait(0.1)
     resetPhysics(character)
     preventRagdoll(character)
-    
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
-    if not humanoid then return end
-    
-    local hasRespawned = false
-    
-    local healthConnection = humanoid:GetPropertyChangedSignal("Health"):Connect(function()
-        if humanoid.Health <= 0 and _G.RespawnScript.Active and not hasRespawned then
-            hasRespawned = true
-            if canRespawn() then
-                tripleSpeedForceRespawn()
-            end
-        end
-    end)
-    table.insert(_G.RespawnScript.Connections, healthConnection)
 end
 
 -- ============================================================================
@@ -327,18 +219,17 @@ local function toggleScript()
         _G.RespawnScript.Active = true
         toggleButton.Text = "FAST: ON"
         
-        -- Start all acceleration threads
-        cleanCharacterCache()
-        directRespawnAPI()
-        autoRespawnAcceleration()
+        -- Start health monitoring (only respawns when killed)
+        monitorHealth()
         
         local charAddedConnection = LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
         table.insert(_G.RespawnScript.Connections, charAddedConnection)
         
         local keyConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
             if not gameProcessed and input.KeyCode == Enum.KeyCode.R then
-                if canRespawn() then
-                    tripleSpeedForceRespawn()
+                -- Manual respawn with R key
+                if LocalPlayer.Character then
+                    instantRespawn()
                 end
             end
         end)
@@ -346,12 +237,10 @@ local function toggleScript()
         
         if LocalPlayer.Character then
             onCharacterAdded(LocalPlayer.Character)
-        else
-            tripleSpeedForceRespawn()
         end
     end
 end
 
 toggleButton.MouseButton1Click:Connect(toggleScript)
 
-print("✅ ULTIMATE RESPAWN SCRIPT LOADED - INSTANT RESPAWNS ACTIVE!")
+print("✅ RESPAWN SCRIPT LOADED - INSTANT RESPAWN WHEN KILLED!")
