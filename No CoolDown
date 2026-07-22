@@ -185,7 +185,7 @@ local function toolCooldownBypass()
 end
 
 -- ============================================================================
--- 9. ATTACK SPEED MULTIPLIER - 10X FASTER
+-- 9. ATTACK SPEED MULTIPLIER - 5,000,000X FASTER (5MX)
 -- ============================================================================
 local function attackSpeedMultiplier()
     task.spawn(function()
@@ -195,9 +195,9 @@ local function attackSpeedMultiplier()
                     for _, tool in pairs(LocalPlayer.Character:GetChildren()) do
                         if tool:IsA("Tool") then
                             for _, desc in pairs(tool:GetDescendants()) do
-                                if desc.Name:lower():find("speed") or desc.Name:lower():find("rate") then
+                                if desc.Name:lower():find("speed") or desc.Name:lower():find("rate") or desc.Name:lower():find("damage") or desc.Name:lower():find("attackspeed") then
                                     if desc:IsA("IntValue") or desc:IsA("NumberValue") then
-                                        desc.Value = math.huge
+                                        desc.Value = 5000000 -- 5 MILLION X SPEED
                                     end
                                 end
                             end
@@ -374,4 +374,5 @@ continuousBypassLoop()
 instantStateReset()
 
 print("✅ SUPER ULTIMATE NO COOLDOWN SCRIPT LOADED - ALL SYSTEMS ACTIVE!")
+print("⚡ ATTACK SPEED: 5,000,000X (5MX) - MAXIMUM DEVASTATION!")
 print("💚 Use the green button at the top to toggle on/off")
