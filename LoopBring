@@ -167,8 +167,13 @@ local function loopBring(targetPlayer, label)
     tweenColor(label, "TextColor3", COLORS.TextActive)
 
     task.spawn(function()
-        while LoopBrings[targetPlayer.UserId] and targetPlayer and targetPlayer.Character and LocalPlayer.Character do
+        while LoopBrings[targetPlayer.UserId] and targetPlayer and targetPlayer.Character do
             if not Players:FindFirstChild(targetPlayer.Name) then break end
+            
+            -- Wait for LocalPlayer to respawn if they're dead
+            while not LocalPlayer.Character do
+                task.wait(0.1)
+            end
             
             local targetHRP = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
             local localHRP = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
