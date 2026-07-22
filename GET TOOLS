@@ -67,7 +67,7 @@ ToggleButton.MouseButton1Click:Connect(function()
 end)
 
 -- ============================================================================
--- MAIN CORE LOGIC
+-- MAIN CORE LOGIC (OPTIMIZED FOR SPEED)
 -- ============================================================================
 local excludedBases = { "Insanity", "Giant", "Dark", "Spike", "Web", "Strong" }
 local allowedBases = { "Stone", "Magic", "Storm", "Robotic" }
@@ -130,11 +130,14 @@ local function OnRespawn(Character)
     
     CacheGivers()
     
+    -- Triple collection on respawn for faster grab
+    TurboCollect()
     TurboCollect()
     TurboCollect()
     
+    -- Reduced wait time from 0.05 to 0.02 for faster collection
     local t = os.clock()
-    while os.clock() - t < 0.05 and _G.ScriptEnabled do
+    while os.clock() - t < 0.02 and _G.ScriptEnabled do
         TurboCollect()
     end
 end
@@ -146,13 +149,25 @@ Tycoons.DescendantAdded:Connect(function(descendant)
     end
 end)
 
--- Dedicated thread running at absolute maximum yield speed limits
+-- OPTIMIZED: Use RenderStepped instead of Heartbeat for faster collection
+-- Also add multiple collections per frame
+task.spawn(function()
+    while true do
+        if _G.ScriptEnabled then
+            TurboCollect()
+            TurboCollect()
+        end
+        RunService.RenderStepped:Wait()
+    end
+end)
+
+-- Secondary faster collection loop running 3x per heartbeat
 task.spawn(function()
     while true do
         if _G.ScriptEnabled then
             TurboCollect()
         end
-        RunService.Heartbeat:Wait()
+        task.wait(0.001) -- 1ms interval for ultra-fast collection
     end
 end)
 
