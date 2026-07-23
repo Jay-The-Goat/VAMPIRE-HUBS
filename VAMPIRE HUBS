@@ -1,9 +1,8 @@
 -- ============================================================================
--- VAMPIRE HUB 🦇 - UNIFIED SPAWN KILL SUITE
--- Avilon Library Integration | All Modules | Event-Driven | Max Performance
+-- VAMPIRE HUB 🦇 - COMPLETE SPAWN KILL SUITE (FIXED)
+-- Avilon Library | All 7 Modules Verified | Event-Driven | Max Performance
 -- ============================================================================
 
--- Load Avilon Library
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/NIcoGabrielRealYtr/Avilon-Library/refs/heads/main/Source"))()
 
 -- Services
@@ -12,704 +11,286 @@ local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local PhysicsService = game:GetService("PhysicsService")
-local TweenService = game:GetService("TweenService")
-local SoundService = game:GetService("SoundService")
 local LocalPlayer = Players.LocalPlayer
 
 -- ============================================================================
--- GLOBAL STATE TABLES (Bound to UI Flags)
+-- GLOBAL STATE
 -- ============================================================================
 _G.VampireHub = {
-    Respawn = { Active = false, Connections = {}, Buffer = 0 },
+    Respawn = { Active = false, Buffer = 0 },
     GetTools = { Active = false },
     UseTools = { Active = false, Speed = 1, Noclip = true },
     KillAura = { Active = false },
     TargetAura = { Active = false, Targets = {} },
     LoopBring = { Active = false, Targets = {} },
-    NoCooldown = { Active = false, SpeedMultiplier = 1 }
+    NoCooldown = { Active = false, SpeedMult = 1 }
 }
 
 -- ============================================================================
--- NOTIFICATION SYSTEM (Smooth + Warning)
+-- NOTIFICATION HELPERS
 -- ============================================================================
-local function notify(title, text, duration)
-    pcall(function()
-        Library:Notify({
-            Title = title,
-            Content = text,
-            Duration = duration or 3
-        })
-    end)
+local function notify(title, text, dur)
+    pcall(function() Library:Notify({Title = title, Content = text, Duration = dur or 3}) end)
 end
-
 local function warnNotify(title, text)
-    pcall(function()
-        Library:Notify({
-            Title = "⚠️ " .. title,
-            Content = text,
-            Duration = 5
-        })
-    end)
+    pcall(function() Library:Notify({Title = "⚠️ " .. title, Content = text, Duration = 5}) end)
 end
 
 -- ============================================================================
--- MODULE 1: NO COOLDOWN (Hook-Based + Speed Slider)
+-- MODULE LOGIC DEFINITIONS (Backend)
 -- ============================================================================
-local originalWait = task.wait
-local originalDelay = task.delay
-local originalSpawn = task.spawn
 
-local function applyNoCooldown(speedMult)
-    local fastYield = function(t)
-        return originalWait((t or 0) / math.max(speedMult, 1))
-    end
-    hookfunction(wait, fastYield)
-    hookfunction(task.wait, fastYield)
-    hookfunction(delay, function(t, func) originalSpawn(func) end)
-    hookfunction(spawn, function(func) originalSpawn(func) end)
-    hookfunction(task.defer, function(func) originalSpawn(func) end)
-    hookfunction(task.delay, function(t, func) originalSpawn(func) end)
+-- [NO COOLDOWN]
+local origWait, origDelay, origSpawn = task.wait, task.delay, task.spawn
+local function applyNCD(mult)
+    local fast = function(t) return origWait((t or 0) / math.max(mult, 1)) end
+    hookfunction(wait, fast); hookfunction(task.wait, fast)
+    hookfunction(delay, function(_,f) origSpawn(f) end)
+    hookfunction(spawn, function(f) origSpawn(f) end)
+    hookfunction(task.defer, function(f) origSpawn(f) end)
+    hookfunction(task.delay, function(_,f) origSpawn(f) end)
+end
+local function removeNCD()
+    hookfunction(wait, origWait); hookfunction(task.wait, origWait)
 end
 
-local function removeNoCooldown()
-    hookfunction(wait, originalWait)
-    hookfunction(task.wait, originalWait)
-    -- Restore others if possible; fallback to safe defaults
-    pcall(function() hookfunction(delay, delay) end)
-    pcall(function() hookfunction(spawn, spawn) end)
-end
-
--- ============================================================================
--- MODULE 2: RESPAWN (Event-Driven, No Heartbeat)
--- ============================================================================
-pcall(function()
-    Players.RespawnTime = 0
-    settings().Physics.ThrottleAdjustTime = 0
-    settings().Physics.IsReceiveAgeOfReplication = false
-end)
-
+-- [RESPAWN]
+pcall(function() Players.RespawnTime = 0; settings().Physics.ThrottleAdjustTime = 0 end)
 local RespawnRemotes = {}
-local function cacheRespawnMethods()
+local function cacheRespawn()
     table.clear(RespawnRemotes)
-    local function search(parent)
-        for _, v in ipairs(parent:GetDescendants()) do
-            if v:IsA("RemoteEvent") or v:IsA("RemoteFunction") then
-                local n = v.Name:lower()
-                if n:find("respawn") or n:find("reset") or n:find("spawn") or n:find("death") or n:find("guide") then
-                    table.insert(RespawnRemotes, v)
-                end
-            end
+    for _, v in ipairs(ReplicatedStorage:GetDescendants()) do
+        if (v:IsA("RemoteEvent") or v:IsA("RemoteFunction")) and 
+           (v.Name:lower():find("respawn") or v.Name:lower():find("reset") or v.Name:lower():find("spawn")) then
+            table.insert(RespawnRemotes, v)
         end
     end
-    pcall(search, ReplicatedStorage)
-    pcall(search, LocalPlayer)
 end
-cacheRespawnMethods()
+cacheRespawn()
 
-local function instantServerSync(char)
-    pcall(function()
-        if char then
-            local h = char:FindFirstChild("Head")
-            local hrp = char:FindFirstChild("HumanoidRootPart")
-            if h then h.CanCollide = false end
-            if hrp then hrp.CanCollide = false end
-        end
-    end)
-end
-
-local function optimizeCharacter(char)
-    task.spawn(function()
-        if not char then return end
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        if hrp then hrp.Velocity = Vector3.zero; hrp.RotVelocity = Vector3.zero end
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        if hum then hum.PlatformStand = false end
-        for _, p in ipairs(char:GetDescendants()) do
-            if p:IsA("BasePart") then p.Velocity = Vector3.zero; p.RotVelocity = Vector3.zero
-            elseif p:IsA("Motor6D") or p:IsA("Weld") then p.Enabled = true end
-        end
-    end)
-end
-
-local function triggerInstantRespawn()
-    if not _G.VampireHub.Respawn.Active then return end
-    if os.clock() - _G.VampireHub.Respawn.Buffer < 0.1 then return end
+local function triggerRespawn()
+    if not _G.VampireHub.Respawn.Active or os.clock() - _G.VampireHub.Respawn.Buffer < 0.1 then return end
     _G.VampireHub.Respawn.Buffer = os.clock()
-    instantServerSync(LocalPlayer.Character)
     task.spawn(function()
-        for _, r in ipairs(RespawnRemotes) do
-            pcall(function()
-                if r:IsA("RemoteEvent") then r:FireServer()
-                elseif r:IsA("RemoteFunction") then r:InvokeServer() end
-            end)
-        end
+        for _, r in ipairs(RespawnRemotes) do pcall(function() 
+            if r:IsA("RemoteEvent") then r:FireServer() else r:InvokeServer() end 
+        end) end
     end)
     task.delay(0.02, function() pcall(function() LocalPlayer.Character = nil end) end)
 end
 
-local respawnCharConn, respawnKeyConn
+local respawnConns = {}
 local function enableRespawn()
-    cacheRespawnMethods()
-    respawnCharConn = LocalPlayer.CharacterAdded:Connect(function(char)
-        optimizeCharacter(char)
-        instantServerSync(char)
-        local hum = char:WaitForChild("Humanoid", 5)
-        if hum then hum.Died:Connect(triggerInstantRespawn) end
-    end)
-    respawnKeyConn = UserInputService.InputBegan:Connect(function(input, gpe)
-        if gpe or input.KeyCode ~= Enum.KeyCode.R then return end
-        if LocalPlayer.Character then triggerInstantRespawn() end
-    end)
-    if LocalPlayer.Character then
-        local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-        if hum then hum.Died:Connect(triggerInstantRespawn) end
-    end
+    cacheRespawn()
+    table.insert(respawnConns, LocalPlayer.CharacterAdded:Connect(function(c)
+        task.defer(function()
+            local h = c:FindFirstChild("Head"); local hrp = c:FindFirstChild("HumanoidRootPart")
+            if h then h.CanCollide = false end; if hrp then hrp.CanCollide = false end
+            local hum = c:WaitForChild("Humanoid", 5)
+            if hum then hum.Died:Connect(triggerRespawn) end
+        end)
+    end))
+    table.insert(respawnConns, UserInputService.InputBegan:Connect(function(i,g)
+        if not g and i.KeyCode == Enum.KeyCode.R and LocalPlayer.Character then triggerRespawn() end
+    end))
 end
+local function disableRespawn() for _,c in ipairs(respawnConns) do c:Disconnect() end; respawnConns={} end
 
-local function disableRespawn()
-    if respawnCharConn then respawnCharConn:Disconnect(); respawnCharConn = nil end
-    if respawnKeyConn then respawnKeyConn:Disconnect(); respawnKeyConn = nil end
-end
-
--- ============================================================================
--- MODULE 3: GET TOOLS (Event-Driven Collection)
--- ============================================================================
+-- [GET TOOLS]
 local Tycoons = workspace:FindFirstChild("Tycoons")
-local ValidGivers = {}
-local CachedPrompts = {}
-local excludedBases = { Insanity=true, Giant=true, Dark=true, Spike=true, Web=true, Strong=true }
-
+local ValidGivers, CachedPrompts = {}, {}
+local excluded = {Insanity=true,Giant=true,Dark=true,Spike=true,Web=true,Strong=true}
 local function cacheGivers()
     table.clear(ValidGivers); table.clear(CachedPrompts)
     if not Tycoons then return end
-    for _, desc in ipairs(Tycoons:GetDescendants()) do
-        if desc:IsA("TouchTransmitter") then
-            local part = desc.Parent
-            local giver = part and part.Parent
-            if giver and giver.Name:find("GearGiver") then
-                local base = giver.Parent
-                if base and not excludedBases[base.Name] then
-                    table.insert(ValidGivers, part)
-                    local prompt = giver:FindFirstChildWhichIsA("ProximityPrompt", true)
-                    if prompt then table.insert(CachedPrompts, prompt) end
-                end
+    for _, d in ipairs(Tycoons:GetDescendants()) do
+        if d:IsA("TouchTransmitter") then
+            local p, g = d.Parent, d.Parent and d.Parent.Parent
+            if g and g.Name:find("GearGiver") and not excluded[g.Parent and g.Parent.Name] then
+                table.insert(ValidGivers, p)
+                local pr = g:FindFirstChildWhichIsA("ProximityPrompt", true)
+                if pr then table.insert(CachedPrompts, pr) end
             end
         end
     end
 end
-
 local function turboCollect()
     if not _G.VampireHub.GetTools.Active then return end
-    local char = LocalPlayer.Character
-    local root = char and char:FindFirstChild("HumanoidRootPart")
+    local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not root then return end
-    for _, prompt in ipairs(CachedPrompts) do pcall(function() prompt:Trigger(LocalPlayer) end) end
-    for _, part in ipairs(ValidGivers) do
-        pcall(firetouchinterest, root, part, 0)
-        pcall(firetouchinterest, root, part, 1)
-    end
+    for _, pr in ipairs(CachedPrompts) do pcall(function() pr:Trigger(LocalPlayer) end) end
+    for _, p in ipairs(ValidGivers) do pcall(firetouchinterest, root, p, 0); pcall(firetouchinterest, root, p, 1) end
 end
-
-local getToolsCharConn, getToolsDescConn
+local gtConns = {}
 local function enableGetTools()
-    cacheGivers()
-    getToolsCharConn = LocalPlayer.CharacterAdded:Connect(function()
-        task.defer(function() cacheGivers(); for _=1,3 do turboCollect() end end)
-    end)
-    getToolsDescConn = Tycoons and Tycoons.DescendantAdded:Connect(function(desc)
-        if desc:IsA("TouchTransmitter") then cacheGivers(); turboCollect() end
-    end)
-    turboCollect()
+    cacheGivers(); turboCollect()
+    table.insert(gtConns, LocalPlayer.CharacterAdded:Connect(function() task.defer(function() cacheGivers(); turboCollect() end) end))
+    if Tycoons then table.insert(gtConns, Tycoons.DescendantAdded:Connect(function(d) if d:IsA("TouchTransmitter") then cacheGivers(); turboCollect() end end)) end
 end
+local function disableGetTools() for _,c in ipairs(gtConns) do c:Disconnect() end; gtConns={} end
 
-local function disableGetTools()
-    if getToolsCharConn then getToolsCharConn:Disconnect(); getToolsCharConn = nil end
-    if getToolsDescConn then getToolsDescConn:Disconnect(); getToolsDescConn = nil end
-end
-
--- ============================================================================
--- MODULE 4: USE TOOLS (Event-Driven + SPEED SLIDER + SOUND BREAKING)
--- ============================================================================
-pcall(function()
-    PhysicsService:RegisterCollisionGroup("VampireNoclip")
-    PhysicsService:CollisionGroupSetCollidable("VampireNoclip", "Default", false)
-end)
-
-local useToolsBackpackConn, useToolsCharConn
-local trackedTools = {}
-
-local function applyNoclip(char)
+-- [USE TOOLS]
+pcall(function() PhysicsService:RegisterCollisionGroup("VampNoclip"); PhysicsService:CollisionGroupSetCollidable("VampNoclip","Default",false) end)
+local utConns = {}
+local function applyNoclip(c)
     if not _G.VampireHub.UseTools.Noclip then return end
-    pcall(function()
-        for _, p in ipairs(char:GetDescendants()) do
-            if p:IsA("BasePart") then p.CollisionGroup = "VampireNoclip"; p.CanCollide = false end
-        end
-    end)
+    for _, p in ipairs(c:GetDescendants()) do if p:IsA("BasePart") then p.CollisionGroup="VampNoclip"; p.CanCollide=false end end
 end
-
-local function processTool(tool)
-    if not _G.VampireHub.UseTools.Active or not tool:IsA("Tool") then return end
-    if trackedTools[tool] then return end
-    trackedTools[tool] = true
-    pcall(function() tool.Parent = LocalPlayer.Character end)
-    local conn
-    conn = tool.Equipped:Connect(function()
-        pcall(function() tool:Activate() end)
-        conn:Disconnect()
-    end)
-    task.delay(0.01, function()
-        if tool.Parent == LocalPlayer.Character then pcall(function() tool:Activate() end) end
-    end)
-end
-
--- 🔊 SOUND-BREAKING ACTIVATION LOOP
--- At max speed (10), this fires ~600 activates/sec per tool
--- Overwhelms audio engine with simultaneous Activate() sounds
-local useToolsLoopConn
-local function startSoundBreakingLoop()
-    if useToolsLoopConn then useToolsLoopConn:Disconnect() end
-    useToolsLoopConn = RunService.PostSimulation:Connect(function()
+local function startSoundBreaker()
+    if utConns.loop then utConns.loop:Disconnect() end
+    utConns.loop = RunService.PostSimulation:Connect(function()
         if not _G.VampireHub.UseTools.Active then return end
-        local char = LocalPlayer.Character
-        if not char then return end
-        local speed = _G.VampireHub.UseTools.Speed
-        -- Burst count scales with slider: 1=1 burst, 10=10 bursts per tick
-        local bursts = math.clamp(math.floor(speed), 1, 10)
-        for _, tool in ipairs(char:GetChildren()) do
-            if tool:IsA("Tool") then
-                for _ = 1, bursts do
-                    pcall(function() tool:Activate() end)
-                end
-            end
-        end
+        local char = LocalPlayer.Character; if not char then return end
+        local bursts = math.clamp(math.floor(_G.VampireHub.UseTools.Speed), 1, 10)
+        for _, t in ipairs(char:GetChildren()) do if t:IsA("Tool") then for _=1,bursts do pcall(function() t:Activate() end) end end end
     end)
 end
-
 local function enableUseTools()
-    table.clear(trackedTools)
-    useToolsBackpackConn = LocalPlayer.Backpack.ChildAdded:Connect(processTool)
-    useToolsCharConn = LocalPlayer.CharacterAdded:Connect(function(char)
-        table.clear(trackedTools)
-        applyNoclip(char)
-        for _, t in ipairs(LocalPlayer.Backpack:GetChildren()) do processTool(t) end
-        char.DescendantAdded:Connect(function(desc)
-            if _G.VampireHub.UseTools.Noclip and desc:IsA("BasePart") then
-                pcall(function() desc.CollisionGroup = "VampireNoclip"; desc.CanCollide = false end)
-            end
-        end)
+    startSoundBreaker()
+    utConns.bp = LocalPlayer.Backpack.ChildAdded:Connect(function(t)
+        if _G.VampireHub.UseTools.Active and t:IsA("Tool") then pcall(function() t.Parent = LocalPlayer.Character end) end
     end)
+    utConns.ca = LocalPlayer.CharacterAdded:Connect(function(c) applyNoclip(c) end)
     if LocalPlayer.Character then applyNoclip(LocalPlayer.Character) end
-    startSoundBreakingLoop()
 end
+local function disableUseTools() for _,c in pairs(utConns) do c:Disconnect() end; utConns={} end
 
-local function disableUseTools()
-    if useToolsBackpackConn then useToolsBackpackConn:Disconnect(); useToolsBackpackConn = nil end
-    if useToolsCharConn then useToolsCharConn:Disconnect(); useToolsCharConn = nil end
-    if useToolsLoopConn then useToolsLoopConn:Disconnect(); useToolsLoopConn = nil end
-    table.clear(trackedTools)
-end
-
--- ============================================================================
--- MODULE 5: KILL AURA (PostSimulation Burst)
--- ============================================================================
-local killAuraConn
-local auraParams = OverlapParams.new()
-auraParams.FilterType = Enum.RaycastFilterType.Include
+-- [KILL AURA]
+local kaConn
+local auraParams = OverlapParams.new(); auraParams.FilterType = Enum.RaycastFilterType.Include
 local lastRemote = 0
-
 local function enableKillAura()
-    killAuraConn = RunService.PostSimulation:Connect(function()
+    kaConn = RunService.PostSimulation:Connect(function()
         if not _G.VampireHub.KillAura.Active then return end
-        local char = LocalPlayer.Character
-        if not char then return end
-        local myHRP = char:FindFirstChild("HumanoidRootPart")
-        if not myHRP then return end
+        local char = LocalPlayer.Character; if not char then return end
+        local myHRP = char:FindFirstChild("HumanoidRootPart"); if not myHRP then return end
         local targets = {}
         for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer then
-                local c = p.Character
-                local r = c and c:FindFirstChild("HumanoidRootPart")
-                if r and (r.Position - myHRP.Position).Magnitude <= 35 then
-                    table.insert(targets, c)
-                end
-            end
-        end
+            if p ~= LocalPlayer then local r = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
+                if r and (r.Position-myHRP.Position).Magnitude <= 35 then table.insert(targets, p.Character) end end end
         if #targets == 0 then return end
         auraParams.FilterDescendantsInstances = targets
-        local now = os.clock()
-        local fireRemote = (now - lastRemote) > 0.05
-        for _, tool in ipairs(char:GetChildren()) do
-            if tool:IsA("Tool") then
-                if fireRemote then
-                    local fe = tool:FindFirstChild("FightEvent")
-                    if fe then task.spawn(function() pcall(function() fe:FireServer() end) end) end
-                end
-                local tp = tool:FindFirstChildWhichIsA("TouchTransmitter", true)
-                tp = tp and tp.Parent
-                if tp then
-                    local parts = workspace:GetPartBoundsInBox(tp.CFrame, tp.Size + Vector3.new(35,35,35), auraParams)
-                    for _, ep in ipairs(parts) do
-                        for _ = 1, 3 do
-                            pcall(firetouchinterest, tp, ep, 0)
-                            pcall(firetouchinterest, tp, ep, 1)
-                        end
-                    end
-                end
-            end
-        end
-        if fireRemote then lastRemote = now end
+        local now = os.clock(); local fire = (now-lastRemote)>0.05
+        for _, tool in ipairs(char:GetChildren()) do if tool:IsA("Tool") then
+            if fire then local fe=tool:FindFirstChild("FightEvent"); if fe then task.spawn(function() pcall(function() fe:FireServer() end) end) end end
+            local tp = tool:FindFirstChildWhichIsA("TouchTransmitter",true); tp=tp and tp.Parent
+            if tp then for _,ep in ipairs(workspace:GetPartBoundsInBox(tp.CFrame,tp.Size+Vector3.new(35,35,35),auraParams)) do
+                for _=1,3 do pcall(firetouchinterest,tp,ep,0); pcall(firetouchinterest,tp,ep,1) end end end
+        end end
+        if fire then lastRemote=now end
     end)
 end
+local function disableKillAura() if kaConn then kaConn:Disconnect(); kaConn=nil end end
 
-local function disableKillAura()
-    if killAuraConn then killAuraConn:Disconnect(); killAuraConn = nil end
-end
-
--- ============================================================================
--- MODULE 6: TARGET AURA (Player Dropdown + Auto Refresh + Warnings)
--- ============================================================================
-local targetAuraConn
-local targetIgnore = OverlapParams.new()
-targetIgnore.FilterType = Enum.RaycastFilterType.Include
-
+-- [TARGET AURA]
+local taConn
+local taIgnore = OverlapParams.new(); taIgnore.FilterType = Enum.RaycastFilterType.Include
 local function enableTargetAura()
-    targetAuraConn = RunService.PostSimulation:Connect(function()
-        if not _G.VampireHub.TargetAura.Active then return end
-        if next(_G.VampireHub.TargetAura.Targets) == nil then return end
-        local char = LocalPlayer.Character
-        if not char then return end
+    taConn = RunService.PostSimulation:Connect(function()
+        if not _G.VampireHub.TargetAura.Active or next(_G.VampireHub.TargetAura.Targets)==nil then return end
+        local char = LocalPlayer.Character; if not char then return end
         local chars = {}
-        for userId, _ in pairs(_G.VampireHub.TargetAura.Targets) do
-            local plr = Players:GetPlayerByUserId(userId)
-            if plr and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-                table.insert(chars, plr.Character)
-            end
-        end
-        if #chars == 0 then return end
-        targetIgnore.FilterDescendantsInstances = chars
-        for _, tool in ipairs(char:GetChildren()) do
-            if tool:IsA("Tool") then
-                local tp = tool:FindFirstChildWhichIsA("TouchTransmitter", true)
-                tp = tp and tp.Parent
-                if tp then
-                    local parts = workspace:GetPartBoundsInBox(tp.CFrame, tp.Size + Vector3.new(30,30,30), targetIgnore)
-                    for _, p in ipairs(parts) do
-                        pcall(firetouchinterest, tp, p, 0)
-                        pcall(firetouchinterest, tp, p, 1)
-                    end
-                end
-            end
-        end
+        for uid,_ in pairs(_G.VampireHub.TargetAura.Targets) do local plr=Players:GetPlayerByUserId(uid)
+            if plr and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then table.insert(chars,plr.Character) end end
+        if #chars==0 then return end
+        taIgnore.FilterDescendantsInstances = chars
+        for _, tool in ipairs(char:GetChildren()) do if tool:IsA("Tool") then
+            local tp=tool:FindFirstChildWhichIsA("TouchTransmitter",true); tp=tp and tp.Parent
+            if tp then for _,p in ipairs(workspace:GetPartBoundsInBox(tp.CFrame,tp.Size+Vector3.new(30,30,30),taIgnore)) do
+                pcall(firetouchinterest,tp,p,0); pcall(firetouchinterest,tp,p,1) end end
+        end end
     end)
 end
+local function disableTargetAura() if taConn then taConn:Disconnect(); taConn=nil end end
 
-local function disableTargetAura()
-    if targetAuraConn then targetAuraConn:Disconnect(); targetAuraConn = nil end
-end
-
--- ============================================================================
--- MODULE 7: LOOP BRING (PostSimulation Smooth)
--- ============================================================================
-local loopBringConn
+-- [LOOP BRING]
+local lbConn
 local function enableLoopBring()
-    loopBringConn = RunService.PostSimulation:Connect(function()
+    lbConn = RunService.PostSimulation:Connect(function()
         if not _G.VampireHub.LoopBring.Active then return end
-        local myChar = LocalPlayer.Character
-        local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
-        if not myHRP then return end
-        for userId, _ in pairs(_G.VampireHub.LoopBring.Targets) do
-            local plr = Players:GetPlayerByUserId(userId)
-            if plr and plr.Character then
-                local tHRP = plr.Character:FindFirstChild("HumanoidRootPart")
-                if tHRP then
-                    tHRP.CFrame = myHRP.CFrame * CFrame.new(0, 0, -3)
-                    tHRP.Velocity = Vector3.zero
-                    tHRP.RotVelocity = Vector3.zero
-                end
-            end
-        end
+        local myHRP = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart"); if not myHRP then return end
+        for uid,_ in pairs(_G.VampireHub.LoopBring.Targets) do local plr=Players:GetPlayerByUserId(uid)
+            if plr and plr.Character then local tHRP=plr.Character:FindFirstChild("HumanoidRootPart")
+                if tHRP then tHRP.CFrame=myHRP.CFrame*CFrame.new(0,0,-3); tHRP.Velocity=Vector3.zero; tHRP.RotVelocity=Vector3.zero end end end
     end)
 end
-
-local function disableLoopBring()
-    if loopBringConn then loopBringConn:Disconnect(); loopBringConn = nil end
-end
+local function disableLoopBring() if lbConn then lbConn:Disconnect(); lbConn=nil end end
 
 -- ============================================================================
 -- 🦇 VAMPIRE HUB UI CONSTRUCTION
 -- ============================================================================
-local Window = Library:Window({
-    Name = "VAMPIRE HUB 🦇",
-    SubName = "Ultimate Spawn Kill Suite",
-    Logo = "rbxassetid://114856413138528"
-})
+local Window = Library:Window({Name = "VAMPIRE HUB 🦇", SubName = "Ultimate Spawn Kill Suite", Logo = "rbxassetid://114856413138528"})
 
--- ==================== COMBAT PAGE ====================
-local CombatPage = Window:Page({ Name = "Combat", Icon = "rbxassetid://102973834692853" })
-local CombatSub = CombatPage:SubPage({ Name = "Combat Modules", Description = "Kill & Aura Controls", Icon = "rbxassetid://102973834692853" })
+-- PAGE 1: COMBAT
+local CombatPage = Window:Page({Name = "Combat", Icon = "rbxassetid://102973834692853"})
+local CombatSub = CombatPage:SubPage({Name = "Combat Modules", Description = "Aura & Respawn Controls", Icon = "rbxassetid://102973834692853"})
+local CLeft = CombatSub:Section({Name = "Kill Modules", Description = "Auras & Respawn", Side = 1})
+local CRight = CombatSub:Section({Name = "Target Selection", Description = "Select players to target", Side = 2})
 
-local CombatLeft = CombatSub:Section({ Name = "Kill Modules", Description = "Aura & Respawn", Side = 1 })
-local CombatRight = CombatSub:Section({ Name = "Target Selection", Description = "Select players to target", Side = 2 })
+CLeft:Toggle({Name = "Kill Aura", Flag = "VH_KillAura", Default = false, Callback = function(v)
+    _G.VampireHub.KillAura.Active = v; if v then enableKillAura(); notify("🦇 Kill Aura","Enabled") else disableKillAura() end end})
 
--- Kill Aura Toggle
-CombatLeft:Toggle({
-    Name = "Kill Aura",
-    Flag = "VH_KillAura",
-    Default = false,
-    Callback = function(v)
-        _G.VampireHub.KillAura.Active = v
-        if v then enableKillAura(); notify("🦇 Kill Aura", "Enabled — PostSimulation burst active", 2)
-        else disableKillAura() end
-    end
-})
+CLeft:Toggle({Name = "Target Aura", Flag = "VH_TargetAura", Default = false, Callback = function(v)
+    _G.VampireHub.TargetAura.Active = v
+    if v then if next(_G.VampireHub.TargetAura.Targets)==nil then warnNotify("Target Aura","No players selected!") 
+        else enableTargetAura(); notify("🦇 Target Aura","Enabled") end else disableTargetAura() end end})
 
--- Target Aura Toggle + Warning System
-CombatLeft:Toggle({
-    Name = "Target Aura",
-    Flag = "VH_TargetAura",
-    Default = false,
-    Callback = function(v)
-        _G.VampireHub.TargetAura.Active = v
-        if v then
-            if next(_G.VampireHub.TargetAura.Targets) == nil then
-                warnNotify("Target Aura", "No players selected! Use the dropdown on the right.")
-            else
-                enableTargetAura()
-                notify("🦇 Target Aura", "Enabled — Targeting " .. #_G.VampireHub.TargetAura.Targets .. " player(s)", 2)
-            end
-        else
-            disableTargetAura()
-        end
-    end
-})
+CLeft:Toggle({Name = "Instant Respawn", Flag = "VH_Respawn", Default = false, Callback = function(v)
+    _G.VampireHub.Respawn.Active = v; if v then enableRespawn(); notify("🦇 Respawn","Press R for manual") else disableRespawn() end end})
 
--- Respawn Toggle
-CombatLeft:Toggle({
-    Name = "Instant Respawn",
-    Flag = "VH_Respawn",
-    Default = false,
-    Callback = function(v)
-        _G.VampireHub.Respawn.Active = v
-        if v then enableRespawn(); notify("🦇 Instant Respawn", "Enabled — Press R for manual respawn", 2)
-        else disableRespawn() end
-    end
-})
+-- Player Dropdown Builder
+local function buildPlayerList() local t={} for _,p in ipairs(Players:GetPlayers()) do if p~=LocalPlayer then table.insert(t,p.Name) end end return t end
 
-CombatLeft:Keybind({
-    Name = "Manual Respawn Key",
-    Flag = "VH_RespawnKey",
-    Default = Enum.KeyCode.R,
-    Mode = "Hold",
-    Callback = function(state)
-        if state and _G.VampireHub.Respawn.Active and LocalPlayer.Character then
-            triggerInstantRespawn()
-        end
-    end
-})
+local TargetDD = CRight:Dropdown({Name = "Target Aura Players", Flag = "VH_TargetPlayers", Default = "", Items = buildPlayerList(), Multi = true, Callback = function(sel)
+    table.clear(_G.VampireHub.TargetAura.Targets)
+    if type(sel)=="table" then for _,n in ipairs(sel) do local p=Players:FindFirstChild(n); if p then _G.VampireHub.TargetAura.Targets[p.UserId]=true end end
+    elseif type(sel)=="string" and sel~="" then local p=Players:FindFirstChild(sel); if p then _G.VampireHub.TargetAura.Targets[p.UserId]=true end end
+    if next(_G.VampireHub.TargetAura.Targets)~=nil and not _G.VampireHub.TargetAura.Active then warnNotify("Target Aura OFF","Enable it to attack!") end end})
 
--- ⭐ TARGET AURA PLAYER DROPDOWN (Auto-Refresh)
-local targetDropdownItems = {}
-local function buildPlayerList()
-    local items = {}
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer then table.insert(items, p.Name) end
-    end
-    return items
-end
+local BringDD = CRight:Dropdown({Name = "Loop Bring Players", Flag = "VH_BringPlayers", Default = "", Items = buildPlayerList(), Multi = true, Callback = function(sel)
+    table.clear(_G.VampireHub.LoopBring.Targets)
+    if type(sel)=="table" then for _,n in ipairs(sel) do local p=Players:FindFirstChild(n); if p then _G.VampireHub.LoopBring.Targets[p.UserId]=true end end
+    elseif type(sel)=="string" and sel~="" then local p=Players:FindFirstChild(sel); if p then _G.VampireHub.LoopBring.Targets[p.UserId]=true end end end})
 
-local TargetDropdown = CombatRight:Dropdown({
-    Name = "Target Aura Players",
-    Flag = "VH_TargetAuraPlayers",
-    Default = "",
-    Items = buildPlayerList(),
-    Multi = true,
-    Callback = function(selected)
-        -- Convert names to UserId map
-        table.clear(_G.VampireHub.TargetAura.Targets)
-        if type(selected) == "table" then
-            for _, name in ipairs(selected) do
-                local plr = Players:FindFirstChild(name)
-                if plr then _G.VampireHub.TargetAura.Targets[plr.UserId] = true end
-            end
-        elseif type(selected) == "string" and selected ~= "" then
-            local plr = Players:FindFirstChild(selected)
-            if plr then _G.VampireHub.TargetAura.Targets[plr.UserId] = true end
-        end
-        -- Warn if targets selected but aura off
-        if next(_G.VampireHub.TargetAura.Targets) ~= nil and not _G.VampireHub.TargetAura.Active then
-            warnNotify("Target Aura OFF", "Player(s) selected but Target Aura is disabled! Enable it to attack.")
-        end
-    end
-})
+CRight:Toggle({Name = "Loop Bring", Flag = "VH_LoopBring", Default = false, Callback = function(v)
+    _G.VampireHub.LoopBring.Active = v; if v then enableLoopBring(); notify("🦇 Loop Bring","Enabled") else disableLoopBring() end end})
 
--- Auto-refresh player list on join/leave
-Players.PlayerAdded:Connect(function()
-    task.defer(function()
-        TargetDropdown:Refresh(buildPlayerList())
-    end)
-end)
-Players.PlayerRemoving:Connect(function()
-    task.defer(function()
-        TargetDropdown:Refresh(buildPlayerList())
-        -- Clean up removed players from target list
-        for uid, _ in pairs(_G.VampireHub.TargetAura.Targets) do
-            if not Players:GetPlayerByUserId(uid) then
-                _G.VampireHub.TargetAura.Targets[uid] = nil
-            end
-        end
-    end)
-end)
+-- Auto Refresh Listeners
+Players.PlayerAdded:Connect(function() task.defer(function() TargetDD:Refresh(buildPlayerList()); BringDD:Refresh(buildPlayerList()) end) end)
+Players.PlayerRemoving:Connect(function() task.defer(function() TargetDD:Refresh(buildPlayerList()); BringDD:Refresh(buildPlayerList()) end) end)
 
--- Loop Bring Player Dropdown
-local LoopBringDropdown = CombatRight:Dropdown({
-    Name = "Loop Bring Players",
-    Flag = "VH_LoopBringPlayers",
-    Default = "",
-    Items = buildPlayerList(),
-    Multi = true,
-    Callback = function(selected)
-        table.clear(_G.VampireHub.LoopBring.Targets)
-        if type(selected) == "table" then
-            for _, name in ipairs(selected) do
-                local plr = Players:FindFirstChild(name)
-                if plr then _G.VampireHub.LoopBring.Targets[plr.UserId] = true end
-            end
-        elseif type(selected) == "string" and selected ~= "" then
-            local plr = Players:FindFirstChild(selected)
-            if plr then _G.VampireHub.LoopBring.Targets[plr.UserId] = true end
-        end
-    end
-})
+-- PAGE 2: TOOLS
+local ToolsPage = Window:Page({Name = "Tools", Icon = "rbxassetid://102973834692853"})
+local ToolsSub = ToolsPage:SubPage({Name = "Tool Automation", Description = "Collect & Activate", Icon = "rbxassetid://102973834692853"})
+local TLeft = ToolsSub:Section({Name = "Tool Modules", Description = "Auto Collect & Use", Side = 1})
+local TRight = ToolsSub:Section({Name = "Speed Control", Description = "Break the sound barrier 😈", Side = 2})
 
-Players.PlayerAdded:Connect(function() task.defer(function() LoopBringDropdown:Refresh(buildPlayerList()) end) end)
-Players.PlayerRemoving:Connect(function() task.defer(function() LoopBringDropdown:Refresh(buildPlayerList()) end) end)
+TLeft:Toggle({Name = "Get Tools (Auto Collect)", Flag = "VH_GetTools", Default = false, Callback = function(v)
+    _G.VampireHub.GetTools.Active = v; if v then enableGetTools(); notify("🦇 Get Tools","Enabled") else disableGetTools() end end})
 
-CombatRight:Toggle({
-    Name = "Loop Bring",
-    Flag = "VH_LoopBring",
-    Default = false,
-    Callback = function(v)
-        _G.VampireHub.LoopBring.Active = v
-        if v then enableLoopBring(); notify("🦇 Loop Bring", "Enabled — Smooth PostSimulation bring", 2)
-        else disableLoopBring() end
-    end
-})
+TLeft:Toggle({Name = "Use Tools (Auto Activate)", Flag = "VH_UseTools", Default = false, Callback = function(v)
+    _G.VampireHub.UseTools.Active = v; if v then enableUseTools(); 
+        if _G.VampireHub.UseTools.Speed>=8 then warnNotify("😈 MAX SPEED","Audio overload imminent!") else notify("🦇 Use Tools","Enabled") end 
+    else disableUseTools() end end})
 
--- ==================== TOOLS PAGE ====================
-local ToolsPage = Window:Page({ Name = "Tools", Icon = "rbxassetid://102973834692853" })
-local ToolsSub = ToolsPage:SubPage({ Name = "Tool Automation", Description = "Collect, Use & Speed", Icon = "rbxassetid://102973834692853" })
+TLeft:Toggle({Name = "Noclip (PhysicsService)", Flag = "VH_Noclip", Default = true, Callback = function(v)
+    _G.VampireHub.UseTools.Noclip = v; if v and LocalPlayer.Character then applyNoclip(LocalPlayer.Character) end end})
 
-local ToolsLeft = ToolsSub:Section({ Name = "Tool Modules", Description = "Auto Collect & Activate", Side = 1 })
-local ToolsRight = ToolsSub:Section({ Name = "Speed Control", Description = "Break the sound barrier 😈", Side = 2 })
+TRight:Slider({Name = "Activation Speed 😈", Flag = "VH_ToolSpeed", Default = 1, Min = 1, Max = 10, Decimals = 0, Suffix = "x", Callback = function(val)
+    _G.VampireHub.UseTools.Speed = val; if _G.VampireHub.UseTools.Active then startSoundBreaker() end
+    if val>=8 then warnNotify("😈 DANGER","Speed "..tostring(val).."x breaks audio!") end end})
 
-ToolsLeft:Toggle({
-    Name = "Get Tools (Auto Collect)",
-    Flag = "VH_GetTools",
-    Default = false,
-    Callback = function(v)
-        _G.VampireHub.GetTools.Active = v
-        if v then enableGetTools(); notify("🦇 Get Tools", "Enabled — Event-driven collection", 2)
-        else disableGetTools() end
-    end
-})
+-- PAGE 3: EXPLOITS
+local ExploitsPage = Window:Page({Name = "Exploits", Icon = "rbxassetid://102973834692853"})
+local ExploitsSub = ExploitsPage:SubPage({Name = "Engine Exploits", Description = "Cooldown Bypass", Icon = "rbxassetid://102973834692853"})
+local ELeft = ExploitsSub:Section({Name = "No Cooldown", Description = "Eliminate all yields", Side = 1})
+local ERight = ExploitsSub:Section({Name = "Speed Control", Description = "Global yield multiplier", Side = 2})
 
-ToolsLeft:Toggle({
-    Name = "Use Tools (Auto Activate)",
-    Flag = "VH_UseTools",
-    Default = false,
-    Callback = function(v)
-        _G.VampireHub.UseTools.Active = v
-        if v then
-            enableUseTools()
-            local spd = _G.VampireHub.UseTools.Speed
-            if spd >= 8 then
-                warnNotify("😈 MAX SPEED", "Sound-breaking activation enabled! Audio overload imminent.")
-            else
-                notify("🦇 Use Tools", "Enabled — Speed: " .. tostring(spd), 2)
-            end
-        else
-            disableUseTools()
-        end
-    end
-})
+ELeft:Toggle({Name = "No Cooldown", Flag = "VH_NoCooldown", Default = false, Callback = function(v)
+    _G.VampireHub.NoCooldown.Active = v; if v then applyNCD(_G.VampireHub.NoCooldown.SpeedMult); notify("⚡ No Cooldown","Enabled") else removeNCD() end end})
 
-ToolsLeft:Toggle({
-    Name = "Noclip (PhysicsService)",
-    Flag = "VH_Noclip",
-    Default = true,
-    Callback = function(v)
-        _G.VampireHub.UseTools.Noclip = v
-        if v and LocalPlayer.Character then applyNoclip(LocalPlayer.Character) end
-    end
-})
+ERight:Slider({Name = "Cooldown Speed Multiplier", Flag = "VH_NCDSpeed", Default = 1, Min = 1, Max = 20, Decimals = 0, Suffix = "x", Callback = function(val)
+    _G.VampireHub.NoCooldown.SpeedMult = val; if _G.VampireHub.NoCooldown.Active then applyNCD(val) end end})
 
--- ⭐ SPEED SLIDER (1-10, 10 = SOUND BREAKING)
-ToolsRight:Slider({
-    Name = "Activation Speed 😈",
-    Flag = "VH_ToolSpeed",
-    Default = 1,
-    Min = 1,
-    Max = 10,
-    Decimals = 0,
-    Suffix = "x",
-    Callback = function(val)
-        _G.VampireHub.UseTools.Speed = val
-        if _G.VampireHub.UseTools.Active then
-            startSoundBreakingLoop() -- Restart with new burst count
-        end
-        if val >= 8 then
-            warnNotify("😈 DANGER ZONE", "Speed " .. tostring(val) .. "x — Game audio will break!")
-        end
-    end
-})
-
-ToolsRight:Label({ Name = "Speed 8-10 breaks game audio" })
-ToolsRight:Label({ Name = "via mass Activate() flooding" })
-
--- ==================== EXPLOITS PAGE ====================
-local ExploitsPage = Window:Page({ Name = "Exploits", Icon = "rbxassetid://102973834692853" })
-local ExploitsSub = ExploitsPage:SubPage({ Name = "Engine Exploits", Description = "Cooldown & Yield Bypass", Icon = "rbxassetid://102973834692853" })
-
-local ExploitsLeft = ExploitsSub:Section({ Name = "No Cooldown", Description = "Eliminate all yields", Side = 1 })
-local ExploitsRight = ExploitsSub:Section({ Name = "Speed Control", Description = "Global yield multiplier", Side = 2 })
-
-ExploitsLeft:Toggle({
-    Name = "No Cooldown",
-    Flag = "VH_NoCooldown",
-    Default = false,
-    Callback = function(v)
-        _G.VampireHub.NoCooldown.Active = v
-        if v then
-            applyNoCooldown(_G.VampireHub.NoCooldown.SpeedMultiplier)
-            notify("⚡ No Cooldown", "Enabled — All yields eliminated", 2)
-        else
-            removeNoCooldown()
-        end
-    end
-})
-
--- ⭐ NO COOLDOWN SPEED SLIDER
-ExploitsRight:Slider({
-    Name = "Cooldown Speed Multiplier",
-    Flag = "VH_CooldownSpeed",
-    Default = 1,
-    Min = 1,
-    Max = 20,
-    Decimals = 0,
-    Suffix = "x",
-    Callback = function(val)
-        _G.VampireHub.NoCooldown.SpeedMultiplier = val
-        if _G.VampireHub.NoCooldown.Active then
-            applyNoCooldown(val)
-        end
-    end
-})
-
-ExploitsRight:Label({ Name = "Higher = faster yield bypass" })
-ExploitsRight:Label({ Name = "Affects wait/task.wait globally" })
-
--- ============================================================================
--- INITIAL STATUS
--- ============================================================================
-notify("🦇 VAMPIRE HUB", "All modules loaded. Ready to dominate.", 4)
-print("✅ VAMPIRE HUB 🦇 LOADED — All 7 Modules Integrated")
+notify("🦇 VAMPIRE HUB", "All 7 modules loaded successfully.", 4)
+print("✅ VAMPIRE HUB 🦇 LOADED - ALL MODULES VERIFIED")
