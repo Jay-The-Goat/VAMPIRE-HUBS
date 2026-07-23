@@ -1,654 +1,715 @@
--- [[ VAMPIRE - PREMIER INTELLIGENCE MULTI-EXECUTION SYSTEM ]]
+-- ============================================================================
+-- VAMPIRE HUB 🦇 - UNIFIED SPAWN KILL SUITE
+-- Avilon Library Integration | All Modules | Event-Driven | Max Performance
+-- ============================================================================
+
+-- Load Avilon Library
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/NIcoGabrielRealYtr/Avilon-Library/refs/heads/main/Source"))()
+
+-- Services
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local Stats = game:GetService("Stats")
-local DataStoreService = game:GetService("DataStoreService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+local PhysicsService = game:GetService("PhysicsService")
 local TweenService = game:GetService("TweenService")
+local SoundService = game:GetService("SoundService")
 local LocalPlayer = Players.LocalPlayer
 
--- Target Configuration
-local OWNER_USERNAME = "Thegoat_legued"
-local IS_OWNER = (LocalPlayer.Name == OWNER_USERNAME)
-
--- 1. Create Core ScreenGui Container
-local VampireGui = Instance.new("ScreenGui")
-VampireGui.Name = "Vampire_V2"
-VampireGui.ResetOnSpawn = false
-VampireGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
-pcall(function()
-    if syn and syn.protect_gui then
-        syn.protect_gui(VampireGui)
-    elseif gethui then
-        VampireGui.Parent = gethui()
-    else
-        VampireGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-    end
-end)
-
--- 2. Rotating Password Configuration Matrix (24-Hour System)
-local DailyPasswords = {
-    [1] = "Vampire_Sunday2026",
-    [2] = "Vampire_Monday99",
-    [3] = "Vampire_TuesdayX",
-    [4] = "Vampire_WednesdayBlood",
-    [5] = "Vampire_ThursdayBite",
-    [6] = "Vampire_FridayNight",
-    [7] = "Vampire_SaturdayHell"
+-- ============================================================================
+-- GLOBAL STATE TABLES (Bound to UI Flags)
+-- ============================================================================
+_G.VampireHub = {
+    Respawn = { Active = false, Connections = {}, Buffer = 0 },
+    GetTools = { Active = false },
+    UseTools = { Active = false, Speed = 1, Noclip = true },
+    KillAura = { Active = false },
+    TargetAura = { Active = false, Targets = {} },
+    LoopBring = { Active = false, Targets = {} },
+    NoCooldown = { Active = false, SpeedMultiplier = 1 }
 }
 
-local function GetCurrentPassword()
-    local dayIndex = math.fmod(math.floor(os.time() / 86400) + 4, 7) + 1 
-    return DailyPasswords[dayIndex]
-end
-
--- 3. Initial Login Screen Layout (Blocks standard users until unlocked)
-local LoginGateFrame = Instance.new("Frame")
-LoginGateFrame.Name = "LoginGate"
-LoginGateFrame.Size = UDim2.new(0, 320, 0, 180)
-LoginGateFrame.Position = UDim2.new(0.5, -160, 0.5, -90)
-LoginGateFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-LoginGateFrame.BorderSizePixel = 0
-LoginGateFrame.Active = true
-LoginGateFrame.Draggable = true
-LoginGateFrame.Parent = VampireGui
-
-local GateCorner = Instance.new("UICorner")
-GateCorner.CornerRadius = UDim.new(0, 6)
-GateCorner.Parent = LoginGateFrame
-
-local GateStroke = Instance.new("UIStroke")
-GateStroke.Color = Color3.fromRGB(255, 0, 51)
-GateStroke.Thickness = 1.5
-GateStroke.Parent = LoginGateFrame
-
-local GateTitle = Instance.new("TextLabel")
-GateTitle.Size = UDim2.new(1, 0, 0, 30)
-GateTitle.BackgroundTransparency = 1
-GateTitle.Text = "🩸 VAMPIRE GATEWAY"
-GateTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-GateTitle.Font = Enum.Font.GothamBold
-GateTitle.TextSize = 13
-GateTitle.Parent = LoginGateFrame
-
-local GateInput = Instance.new("TextBox")
-GateInput.Size = UDim2.new(1, -40, 0, 32)
-GateInput.Position = UDim2.new(0, 20, 0, 55)
-GateInput.BackgroundColor3 = Color3.fromRGB(22, 22, 22)
-GateInput.Text = ""
-GateInput.PlaceholderText = "Enter Current Daily Password..."
-GateInput.TextColor3 = Color3.fromRGB(255, 255, 255)
-GateInput.PlaceholderColor3 = Color3.fromRGB(80, 80, 80)
-GateInput.Font = Enum.Font.Code
-GateInput.TextSize = 11
-GateInput.Parent = LoginGateFrame
-
-local InputCorner = Instance.new("UICorner")
-InputCorner.CornerRadius = UDim.new(0, 4)
-InputCorner.Parent = GateInput
-
-local EnterBtn = Instance.new("TextButton")
-EnterBtn.Size = UDim2.new(1, -40, 0, 32)
-EnterBtn.Position = UDim2.new(0, 20, 0, 100)
-EnterBtn.BackgroundColor3 = Color3.fromRGB(30, 10, 15)
-EnterBtn.Text = "UNLOCK SYSTEM"
-EnterBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-EnterBtn.Font = Enum.Font.GothamBold
-EnterBtn.TextSize = 11
-EnterBtn.Parent = LoginGateFrame
-
-local EnterCorner = Instance.new("UICorner")
-EnterCorner.CornerRadius = UDim.new(0, 4)
-EnterCorner.Parent = EnterBtn
-
-local EnterStroke = Instance.new("UIStroke")
-EnterStroke.Color = Color3.fromRGB(255, 0, 51)
-EnterStroke.Thickness = 1.2
-EnterStroke.Parent = EnterBtn
-
-local function ApplyCoolButtonEffects(button, stroke, baseColor, hoverColor, baseStroke, hoverStroke)
-    button.MouseEnter:Connect(function()
-        TweenService:Create(button, TweenInfo.new(0.2), {BackgroundColor3 = hoverColor}):Play()
-        TweenService:Create(stroke, TweenInfo.new(0.2), {Color = hoverStroke}):Play()
-    end)
-    button.MouseLeave:Connect(function()
-        TweenService:Create(button, TweenInfo.new(0.2), {BackgroundColor3 = baseColor}):Play()
-        TweenService:Create(stroke, TweenInfo.new(0.2), {Color = baseStroke}):Play()
+-- ============================================================================
+-- NOTIFICATION SYSTEM (Smooth + Warning)
+-- ============================================================================
+local function notify(title, text, duration)
+    pcall(function()
+        Library:Notify({
+            Title = title,
+            Content = text,
+            Duration = duration or 3
+        })
     end)
 end
-ApplyCoolButtonEffects(EnterBtn, EnterStroke, Color3.fromRGB(30, 10, 15), Color3.fromRGB(255, 0, 51), Color3.fromRGB(255, 0, 51), Color3.fromRGB(255, 100, 110))
 
-local GateStatus = Instance.new("TextLabel")
-GateStatus.Size = UDim2.new(1, 0, 0, 20)
-GateStatus.Position = UDim2.new(0, 0, 0, 145)
-GateStatus.BackgroundTransparency = 1
-GateStatus.Text = "System Status: Locked"
-GateStatus.TextColor3 = Color3.fromRGB(150, 150, 150)
-GateStatus.Font = Enum.Font.Gotham
-GateStatus.TextSize = 10
-GateStatus.Parent = LoginGateFrame
+local function warnNotify(title, text)
+    pcall(function()
+        Library:Notify({
+            Title = "⚠️ " .. title,
+            Content = text,
+            Duration = 5
+        })
+    end)
+end
 
+-- ============================================================================
+-- MODULE 1: NO COOLDOWN (Hook-Based + Speed Slider)
+-- ============================================================================
+local originalWait = task.wait
+local originalDelay = task.delay
+local originalSpawn = task.spawn
 
--- 4. Base Hub Frame Layout
-local MainHub = Instance.new("Frame")
-MainHub.Name = "MainHub"
-MainHub.Size = UDim2.new(0, 580, 0, 360)
-MainHub.Position = UDim2.new(0.5, -290, 0.5, -180)
-MainHub.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
-MainHub.BorderSizePixel = 0
-MainHub.Active = true
-MainHub.Draggable = true
-MainHub.Visible = false
-MainHub.Parent = VampireGui
+local function applyNoCooldown(speedMult)
+    local fastYield = function(t)
+        return originalWait((t or 0) / math.max(speedMult, 1))
+    end
+    hookfunction(wait, fastYield)
+    hookfunction(task.wait, fastYield)
+    hookfunction(delay, function(t, func) originalSpawn(func) end)
+    hookfunction(spawn, function(func) originalSpawn(func) end)
+    hookfunction(task.defer, function(func) originalSpawn(func) end)
+    hookfunction(task.delay, function(t, func) originalSpawn(func) end)
+end
 
-local HubCorner = Instance.new("UICorner")
-HubCorner.CornerRadius = UDim.new(0, 6)
-HubCorner.Parent = MainHub
+local function removeNoCooldown()
+    hookfunction(wait, originalWait)
+    hookfunction(task.wait, originalWait)
+    -- Restore others if possible; fallback to safe defaults
+    pcall(function() hookfunction(delay, delay) end)
+    pcall(function() hookfunction(spawn, spawn) end)
+end
 
-local HubBorder = Instance.new("UIStroke")
-HubBorder.Color = Color3.fromRGB(255, 0, 51)
-HubBorder.Thickness = 1.5
-HubBorder.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-HubBorder.Parent = MainHub
+-- ============================================================================
+-- MODULE 2: RESPAWN (Event-Driven, No Heartbeat)
+-- ============================================================================
+pcall(function()
+    Players.RespawnTime = 0
+    settings().Physics.ThrottleAdjustTime = 0
+    settings().Physics.IsReceiveAgeOfReplication = false
+end)
 
--- 5. Top Banner Header Details
-local TopHeader = Instance.new("Frame")
-TopHeader.Name = "TopHeader"
-TopHeader.Size = UDim2.new(1, 0, 0, 35)
-TopHeader.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
-TopHeader.BorderSizePixel = 0
-TopHeader.Parent = MainHub
-
-local HeaderCorner = Instance.new("UICorner")
-HeaderCorner.CornerRadius = UDim.new(0, 6)
-HeaderCorner.Parent = TopHeader
-
-local TitleText = Instance.new("TextLabel")
-TitleText.Size = UDim2.new(0, 100, 1, 0)
-TitleText.Position = UDim2.new(0, 12, 0, 0)
-TitleText.BackgroundTransparency = 1
-TitleText.Text = " VAMPIRE"
-TitleText.TextColor3 = Color3.fromRGB(255, 255, 255)
-TitleText.Font = Enum.Font.GothamBold
-TitleText.TextSize = 14
-TitleText.TextXAlignment = Enum.TextXAlignment.Left
-TitleText.Parent = TopHeader
-
-local StatsLabel = Instance.new("TextLabel")
-StatsLabel.Size = UDim2.new(0, 180, 1, 0)
-StatsLabel.Position = UDim2.new(0, 110, 0, 0)
-StatsLabel.BackgroundTransparency = 1
-StatsLabel.Text = "FPS: Calculating... | PING: -- ms"
-StatsLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
-StatsLabel.Font = Enum.Font.Code
-StatsLabel.TextSize = 11
-StatsLabel.TextXAlignment = Enum.TextXAlignment.Left
-StatsLabel.Parent = TopHeader
-
-local BadgeText = Instance.new("TextLabel")
-BadgeText.Size = UDim2.new(0, 150, 1, 0)
-BadgeText.Position = UDim2.new(1, -310, 0, 0)
-BadgeText.BackgroundTransparency = 1
-BadgeText.TextColor3 = Color3.fromRGB(255, 0, 51)
-BadgeText.Font = Enum.Font.GothamSemibold
-BadgeText.TextSize = 11
-BadgeText.TextXAlignment = Enum.TextXAlignment.Right
-BadgeText.Parent = TopHeader
-
-local lastUpdate = os.clock()
-local frameCount = 0
-local PerformanceConnection
-PerformanceConnection = RunService.RenderStepped:Connect(function()
-    frameCount = frameCount + 1
-    local now = os.clock()
-    if now - lastUpdate >= 0.5 then
-        local fps = math.round(frameCount / (now - lastUpdate))
-        local ping = math.round(Stats.Network.ServerTickRate:GetScale() * 1000)
-        if ping == 0 or ping > 1000 then ping = math.random(15, 45) end
-        if StatsLabel and StatsLabel.Parent then
-            StatsLabel.Text = "FPS: " .. tostring(fps) .. " | PING: " .. tostring(ping) .. " ms"
-        else
-            PerformanceConnection:Disconnect()
+local RespawnRemotes = {}
+local function cacheRespawnMethods()
+    table.clear(RespawnRemotes)
+    local function search(parent)
+        for _, v in ipairs(parent:GetDescendants()) do
+            if v:IsA("RemoteEvent") or v:IsA("RemoteFunction") then
+                local n = v.Name:lower()
+                if n:find("respawn") or n:find("reset") or n:find("spawn") or n:find("death") or n:find("guide") then
+                    table.insert(RespawnRemotes, v)
+                end
+            end
         end
-        frameCount = 0
-        lastUpdate = now
     end
-end)
+    pcall(search, ReplicatedStorage)
+    pcall(search, LocalPlayer)
+end
+cacheRespawnMethods()
 
--- Health Bar Component
-local HealthBarBackground = Instance.new("Frame")
-HealthBarBackground.Size = UDim2.new(0, 130, 0, 10)
-HealthBarBackground.Position = UDim2.new(1, -145, 0, 12)
-HealthBarBackground.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-HealthBarBackground.BorderSizePixel = 0
-HealthBarBackground.Parent = TopHeader
+local function instantServerSync(char)
+    pcall(function()
+        if char then
+            local h = char:FindFirstChild("Head")
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            if h then h.CanCollide = false end
+            if hrp then hrp.CanCollide = false end
+        end
+    end)
+end
 
-local HealthBarFill = Instance.new("Frame")
-HealthBarFill.Size = UDim2.new(1, 0, 1, 0)
-HealthBarFill.BackgroundColor3 = Color3.fromRGB(255, 0, 51)
-HealthBarFill.BorderSizePixel = 0
-HealthBarFill.Parent = HealthBarBackground
+local function optimizeCharacter(char)
+    task.spawn(function()
+        if not char then return end
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if hrp then hrp.Velocity = Vector3.zero; hrp.RotVelocity = Vector3.zero end
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then hum.PlatformStand = false end
+        for _, p in ipairs(char:GetDescendants()) do
+            if p:IsA("BasePart") then p.Velocity = Vector3.zero; p.RotVelocity = Vector3.zero
+            elseif p:IsA("Motor6D") or p:IsA("Weld") then p.Enabled = true end
+        end
+    end)
+end
 
-local function SyncHealth()
-    local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-    local humanoid = character:WaitForChild("Humanoid")
-    local function updateFill()
-        local healthPercent = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
-        HealthBarFill.Size = UDim2.new(healthPercent, 0, 1, 0)
+local function triggerInstantRespawn()
+    if not _G.VampireHub.Respawn.Active then return end
+    if os.clock() - _G.VampireHub.Respawn.Buffer < 0.1 then return end
+    _G.VampireHub.Respawn.Buffer = os.clock()
+    instantServerSync(LocalPlayer.Character)
+    task.spawn(function()
+        for _, r in ipairs(RespawnRemotes) do
+            pcall(function()
+                if r:IsA("RemoteEvent") then r:FireServer()
+                elseif r:IsA("RemoteFunction") then r:InvokeServer() end
+            end)
+        end
+    end)
+    task.delay(0.02, function() pcall(function() LocalPlayer.Character = nil end) end)
+end
+
+local respawnCharConn, respawnKeyConn
+local function enableRespawn()
+    cacheRespawnMethods()
+    respawnCharConn = LocalPlayer.CharacterAdded:Connect(function(char)
+        optimizeCharacter(char)
+        instantServerSync(char)
+        local hum = char:WaitForChild("Humanoid", 5)
+        if hum then hum.Died:Connect(triggerInstantRespawn) end
+    end)
+    respawnKeyConn = UserInputService.InputBegan:Connect(function(input, gpe)
+        if gpe or input.KeyCode ~= Enum.KeyCode.R then return end
+        if LocalPlayer.Character then triggerInstantRespawn() end
+    end)
+    if LocalPlayer.Character then
+        local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if hum then hum.Died:Connect(triggerInstantRespawn) end
     end
-    humanoid.HealthChanged:Connect(updateFill)
-    updateFill()
 end
-task.spawn(SyncHealth)
-LocalPlayer.CharacterAdded:Connect(SyncHealth)
 
--- Universal Screen Toggle Component
-local ToggleHubBtn = Instance.new("TextButton")
-ToggleHubBtn.Name = "ToggleHubBtn"
-ToggleHubBtn.Size = UDim2.new(0, 100, 0, 30)
-ToggleHubBtn.Position = UDim2.new(0, 10, 0, 10)
-ToggleHubBtn.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-ToggleHubBtn.Text = "🩸 VAMPIRE"
-ToggleHubBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-ToggleHubBtn.Font = Enum.Font.GothamBold
-ToggleHubBtn.TextSize = 11
-ToggleHubBtn.Visible = false
-ToggleHubBtn.Parent = VampireGui
+local function disableRespawn()
+    if respawnCharConn then respawnCharConn:Disconnect(); respawnCharConn = nil end
+    if respawnKeyConn then respawnKeyConn:Disconnect(); respawnKeyConn = nil end
+end
 
-local ToggleHubCorner = Instance.new("UICorner")
-ToggleHubCorner.CornerRadius = UDim.new(0, 5)
-ToggleHubCorner.Parent = ToggleHubBtn
+-- ============================================================================
+-- MODULE 3: GET TOOLS (Event-Driven Collection)
+-- ============================================================================
+local Tycoons = workspace:FindFirstChild("Tycoons")
+local ValidGivers = {}
+local CachedPrompts = {}
+local excludedBases = { Insanity=true, Giant=true, Dark=true, Spike=true, Web=true, Strong=true }
 
-local ToggleHubStroke = Instance.new("UIStroke")
-ToggleHubStroke.Color = Color3.fromRGB(255, 0, 51)
-ToggleHubStroke.Thickness = 1.5
-ToggleHubStroke.Parent = ToggleHubBtn
+local function cacheGivers()
+    table.clear(ValidGivers); table.clear(CachedPrompts)
+    if not Tycoons then return end
+    for _, desc in ipairs(Tycoons:GetDescendants()) do
+        if desc:IsA("TouchTransmitter") then
+            local part = desc.Parent
+            local giver = part and part.Parent
+            if giver and giver.Name:find("GearGiver") then
+                local base = giver.Parent
+                if base and not excludedBases[base.Name] then
+                    table.insert(ValidGivers, part)
+                    local prompt = giver:FindFirstChildWhichIsA("ProximityPrompt", true)
+                    if prompt then table.insert(CachedPrompts, prompt) end
+                end
+            end
+        end
+    end
+end
 
-ApplyCoolButtonEffects(ToggleHubBtn, ToggleHubStroke, Color3.fromRGB(15, 15, 15), Color3.fromRGB(35, 12, 16), Color3.fromRGB(255, 0, 51), Color3.fromRGB(255, 80, 90))
+local function turboCollect()
+    if not _G.VampireHub.GetTools.Active then return end
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    for _, prompt in ipairs(CachedPrompts) do pcall(function() prompt:Trigger(LocalPlayer) end) end
+    for _, part in ipairs(ValidGivers) do
+        pcall(firetouchinterest, root, part, 0)
+        pcall(firetouchinterest, root, part, 1)
+    end
+end
 
-ToggleHubBtn.MouseButton1Click:Connect(function()
-    MainHub.Visible = not MainHub.Visible
+local getToolsCharConn, getToolsDescConn
+local function enableGetTools()
+    cacheGivers()
+    getToolsCharConn = LocalPlayer.CharacterAdded:Connect(function()
+        task.defer(function() cacheGivers(); for _=1,3 do turboCollect() end end)
+    end)
+    getToolsDescConn = Tycoons and Tycoons.DescendantAdded:Connect(function(desc)
+        if desc:IsA("TouchTransmitter") then cacheGivers(); turboCollect() end
+    end)
+    turboCollect()
+end
+
+local function disableGetTools()
+    if getToolsCharConn then getToolsCharConn:Disconnect(); getToolsCharConn = nil end
+    if getToolsDescConn then getToolsDescConn:Disconnect(); getToolsDescConn = nil end
+end
+
+-- ============================================================================
+-- MODULE 4: USE TOOLS (Event-Driven + SPEED SLIDER + SOUND BREAKING)
+-- ============================================================================
+pcall(function()
+    PhysicsService:RegisterCollisionGroup("VampireNoclip")
+    PhysicsService:CollisionGroupSetCollidable("VampireNoclip", "Default", false)
 end)
 
--- 6. Left Navigation Sidebar Panel Layout
-local NavigationSidebar = Instance.new("Frame")
-NavigationSidebar.Name = "NavigationSidebar"
-NavigationSidebar.Size = UDim2.new(0, 110, 1, -35)
-NavigationSidebar.Position = UDim2.new(0, 0, 0, 35)
-NavigationSidebar.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
-NavigationSidebar.BorderSizePixel = 0
-NavigationSidebar.Parent = MainHub
-local NavigationList = Instance.new("UIListLayout")
-NavigationList.Padding = UDim.new(0, 4)
-NavigationList.HorizontalAlignment = Enum.HorizontalAlignment.Center
-NavigationList.SortOrder = Enum.SortOrder.LayoutOrder
-NavigationList.Parent = NavigationSidebar
-local PaddingSpacer = Instance.new("UIPadding")
-PaddingSpacer.PaddingTop = UDim.new(0, 8)
-PaddingSpacer.Parent = NavigationSidebar
--- 7. Content Viewport Container Deck
-local DeckContainer = Instance.new("Frame")
-DeckContainer.Name = "DeckContainer"
-DeckContainer.Size = UDim2.new(1, -122, 1, -47)
-DeckContainer.Position = UDim2.new(0, 116, 0, 41)
-DeckContainer.BackgroundTransparency = 1
-DeckContainer.Parent = MainHub
-local Pages = {}
-local TabButtons = {}
-local function BuildTabFrame(name, displayLabel, layoutOrder)
-local Button = Instance.new("TextButton")
-Button.Name = name .. "_Tab"
-Button.Size = UDim2.new(0, 96, 0, 28)
-Button.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-Button.Text = displayLabel
-Button.TextColor3 = Color3.fromRGB(140, 140, 140)
-Button.Font = Enum.Font.GothamSemibold
-Button.TextSize = 10
-Button.LayoutOrder = layoutOrder
-Button.Parent = NavigationSidebar
-local BtnCorner = Instance.new("UICorner")
-BtnCorner.CornerRadius = UDim.new(0, 5)
-BtnCorner.Parent = Button
-local BtnStroke = Instance.new("UIStroke")
-BtnStroke.Color = Color3.fromRGB(35, 35, 35)
-BtnStroke.Thickness = 1
-BtnStroke.Parent = Button
-local PageFrame = Instance.new("Frame")
-PageFrame.Name = name .. "_Page"
-PageFrame.Size = UDim2.new(1, 0, 1, 0)
-PageFrame.BackgroundTransparency = 1
-PageFrame.Visible = false
-PageFrame.Parent = DeckContainer
-Pages[name] = PageFrame
-TabButtons[name] = {Btn = Button, Stroke = BtnStroke}
-Button.MouseEnter:Connect(function()
-if Pages[name].Visible == false then
-TweenService:Create(Button, TweenInfo.new(0.2), {TextColor3 = Color3.fromRGB(220, 220, 220)}):Play()
-TweenService:Create(BtnStroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(100, 30, 40)}):Play()
+local useToolsBackpackConn, useToolsCharConn
+local trackedTools = {}
+
+local function applyNoclip(char)
+    if not _G.VampireHub.UseTools.Noclip then return end
+    pcall(function()
+        for _, p in ipairs(char:GetDescendants()) do
+            if p:IsA("BasePart") then p.CollisionGroup = "VampireNoclip"; p.CanCollide = false end
+        end
+    end)
 end
-end)
-Button.MouseLeave:Connect(function()
-if Pages[name].Visible == false then
-TweenService:Create(Button, TweenInfo.new(0.2), {TextColor3 = Color3.fromRGB(140, 140, 140)}):Play()
-TweenService:Create(BtnStroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(35, 35, 35)}):Play()
+
+local function processTool(tool)
+    if not _G.VampireHub.UseTools.Active or not tool:IsA("Tool") then return end
+    if trackedTools[tool] then return end
+    trackedTools[tool] = true
+    pcall(function() tool.Parent = LocalPlayer.Character end)
+    local conn
+    conn = tool.Equipped:Connect(function()
+        pcall(function() tool:Activate() end)
+        conn:Disconnect()
+    end)
+    task.delay(0.01, function()
+        if tool.Parent == LocalPlayer.Character then pcall(function() tool:Activate() end) end
+    end)
 end
-end)
-return PageFrame
+
+-- 🔊 SOUND-BREAKING ACTIVATION LOOP
+-- At max speed (10), this fires ~600 activates/sec per tool
+-- Overwhelms audio engine with simultaneous Activate() sounds
+local useToolsLoopConn
+local function startSoundBreakingLoop()
+    if useToolsLoopConn then useToolsLoopConn:Disconnect() end
+    useToolsLoopConn = RunService.PostSimulation:Connect(function()
+        if not _G.VampireHub.UseTools.Active then return end
+        local char = LocalPlayer.Character
+        if not char then return end
+        local speed = _G.VampireHub.UseTools.Speed
+        -- Burst count scales with slider: 1=1 burst, 10=10 bursts per tick
+        local bursts = math.clamp(math.floor(speed), 1, 10)
+        for _, tool in ipairs(char:GetChildren()) do
+            if tool:IsA("Tool") then
+                for _ = 1, bursts do
+                    pcall(function() tool:Activate() end)
+                end
+            end
+        end
+    end)
 end
-local HomePage = BuildTabFrame("HOME", "🏠 HOME", 1)
-local PasswordPage = BuildTabFrame("PASSWORD", "🔑 PASSWORDS", 2)
-local VampireHubsPage = BuildTabFrame("VAMPIREHUBS", "🩸 VAMPIRE HUBS", 3)
-local SetsPage = BuildTabFrame("SETTINGS", "🛠️ SETTINGS", 4)
-local function RouteToTab(targetName)
-for name, config in pairs(TabButtons) do
-if name == targetName then
-TweenService:Create(config.Btn, TweenInfo.new(0.15), {TextColor3 = Color3.fromRGB(255, 255, 255), BackgroundColor3 = Color3.fromRGB(28, 20, 22)}):Play()
-TweenService:Create(config.Stroke, TweenInfo.new(0.15), {Color = Color3.fromRGB(255, 0, 51)}):Play()
-Pages[name].Visible = true
-else
-TweenService:Create(config.Btn, TweenInfo.new(0.15), {TextColor3 = Color3.fromRGB(140, 140, 140), BackgroundColor3 = Color3.fromRGB(20, 20, 20)}):Play()
-TweenService:Create(config.Stroke, TweenInfo.new(0.15), {Color = Color3.fromRGB(35, 35, 35)}):Play()
-Pages[name].Visible = false
+
+local function enableUseTools()
+    table.clear(trackedTools)
+    useToolsBackpackConn = LocalPlayer.Backpack.ChildAdded:Connect(processTool)
+    useToolsCharConn = LocalPlayer.CharacterAdded:Connect(function(char)
+        table.clear(trackedTools)
+        applyNoclip(char)
+        for _, t in ipairs(LocalPlayer.Backpack:GetChildren()) do processTool(t) end
+        char.DescendantAdded:Connect(function(desc)
+            if _G.VampireHub.UseTools.Noclip and desc:IsA("BasePart") then
+                pcall(function() desc.CollisionGroup = "VampireNoclip"; desc.CanCollide = false end)
+            end
+        end)
+    end)
+    if LocalPlayer.Character then applyNoclip(LocalPlayer.Character) end
+    startSoundBreakingLoop()
 end
+
+local function disableUseTools()
+    if useToolsBackpackConn then useToolsBackpackConn:Disconnect(); useToolsBackpackConn = nil end
+    if useToolsCharConn then useToolsCharConn:Disconnect(); useToolsCharConn = nil end
+    if useToolsLoopConn then useToolsLoopConn:Disconnect(); useToolsLoopConn = nil end
+    table.clear(trackedTools)
 end
+
+-- ============================================================================
+-- MODULE 5: KILL AURA (PostSimulation Burst)
+-- ============================================================================
+local killAuraConn
+local auraParams = OverlapParams.new()
+auraParams.FilterType = Enum.RaycastFilterType.Include
+local lastRemote = 0
+
+local function enableKillAura()
+    killAuraConn = RunService.PostSimulation:Connect(function()
+        if not _G.VampireHub.KillAura.Active then return end
+        local char = LocalPlayer.Character
+        if not char then return end
+        local myHRP = char:FindFirstChild("HumanoidRootPart")
+        if not myHRP then return end
+        local targets = {}
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer then
+                local c = p.Character
+                local r = c and c:FindFirstChild("HumanoidRootPart")
+                if r and (r.Position - myHRP.Position).Magnitude <= 35 then
+                    table.insert(targets, c)
+                end
+            end
+        end
+        if #targets == 0 then return end
+        auraParams.FilterDescendantsInstances = targets
+        local now = os.clock()
+        local fireRemote = (now - lastRemote) > 0.05
+        for _, tool in ipairs(char:GetChildren()) do
+            if tool:IsA("Tool") then
+                if fireRemote then
+                    local fe = tool:FindFirstChild("FightEvent")
+                    if fe then task.spawn(function() pcall(function() fe:FireServer() end) end) end
+                end
+                local tp = tool:FindFirstChildWhichIsA("TouchTransmitter", true)
+                tp = tp and tp.Parent
+                if tp then
+                    local parts = workspace:GetPartBoundsInBox(tp.CFrame, tp.Size + Vector3.new(35,35,35), auraParams)
+                    for _, ep in ipairs(parts) do
+                        for _ = 1, 3 do
+                            pcall(firetouchinterest, tp, ep, 0)
+                            pcall(firetouchinterest, tp, ep, 1)
+                        end
+                    end
+                end
+            end
+        end
+        if fireRemote then lastRemote = now end
+    end)
 end
-for name, config in pairs(TabButtons) do
-config.Btn.MouseButton1Click:Connect(function()
-RouteToTab(name)
-end)
+
+local function disableKillAura()
+    if killAuraConn then killAuraConn:Disconnect(); killAuraConn = nil end
 end
--- 8. Populate HOME Page
-local HomeTitle = Instance.new("TextLabel")
-HomeTitle.Size = UDim2.new(1, 0, 0, 25)
-HomeTitle.BackgroundTransparency = 1
-HomeTitle.Text = "🏠 VAMPIRE MAIN DASHBOARD"
-HomeTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-HomeTitle.Font = Enum.Font.GothamBold
-HomeTitle.TextSize = 14
-HomeTitle.TextXAlignment = Enum.TextXAlignment.Left
-HomeTitle.Parent = HomePage
-local WelcomeText = Instance.new("TextLabel")
-WelcomeText.Size = UDim2.new(1, 0, 0, 20)
-WelcomeText.Position = UDim2.new(0, 0, 0, 35)
-WelcomeText.BackgroundTransparency = 1
-WelcomeText.Text = "Welcome back, " .. LocalPlayer.DisplayName .. " (@" .. LocalPlayer.Name .. ")"
-WelcomeText.TextColor3 = Color3.fromRGB(200, 200, 200)
-WelcomeText.Font = Enum.Font.GothamSemibold
-WelcomeText.TextSize = 12
-WelcomeText.TextXAlignment = Enum.TextXAlignment.Left
-WelcomeText.Parent = HomePage
--- 9. Populate PASSWORD Tab
-local PassTitle = Instance.new("TextLabel")
-PassTitle.Size = UDim2.new(1, 0, 0, 25)
-PassTitle.BackgroundTransparency = 1
-PassTitle.Text = "🔑 ROTATING KEY MATRIX"
-PassTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-PassTitle.Font = Enum.Font.GothamBold
-PassTitle.TextSize = 14
-PassTitle.TextXAlignment = Enum.TextXAlignment.Left
-PassTitle.Parent = PasswordPage
-local PassScrollingFrame = Instance.new("ScrollingFrame")
-PassScrollingFrame.Size = UDim2.new(1, 0, 1, -35)
-PassScrollingFrame.Position = UDim2.new(0, 0, 0, 35)
-PassScrollingFrame.BackgroundTransparency = 1
-PassScrollingFrame.BorderSizePixel = 0
-PassScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 240)
-PassScrollingFrame.ScrollBarThickness = 4
-PassScrollingFrame.Parent = PasswordPage
-local PassListLayout = Instance.new("UIListLayout")
-PassListLayout.Padding = UDim.new(0, 4)
-PassListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-PassListLayout.Parent = PassScrollingFrame
-local DaysNames = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"}
-for i = 1, 7 do
-local PassRow = Instance.new("Frame")
-PassRow.Size = UDim2.new(1, -10, 0, 28)
-PassRow.BackgroundColor3 = Color3.fromRGB(14, 14, 14)
-PassRow.LayoutOrder = i
-PassRow.Parent = PassScrollingFrame
-local RowCorner = Instance.new("UICorner")
-RowCorner.CornerRadius = UDim.new(0, 4)
-RowCorner.Parent = PassRow
-local DayLabel = Instance.new("TextLabel")
-DayLabel.Size = UDim2.new(0, 100, 1, 0)
-DayLabel.Position = UDim2.new(0, 10, 0, 0)
-DayLabel.BackgroundTransparency = 1
-DayLabel.Text = DaysNames[i] .. ":"
-DayLabel.TextColor3 = Color3.fromRGB(160, 160, 160)
-DayLabel.Font = Enum.Font.GothamSemibold
-DayLabel.TextSize = 11
-DayLabel.TextXAlignment = Enum.TextXAlignment.Left
-DayLabel.Parent = PassRow
-local KeyLabel = Instance.new("TextLabel")
-KeyLabel.Size = UDim2.new(1, -120, 1, 0)
-KeyLabel.Position = UDim2.new(0, 110, 0, 0)
-KeyLabel.BackgroundTransparency = 1
-KeyLabel.Text = DailyPasswords[i]
-KeyLabel.TextColor3 = Color3.fromRGB(255, 0, 51)
-KeyLabel.Font = Enum.Font.Code
-KeyLabel.TextSize = 11
-KeyLabel.TextXAlignment = Enum.TextXAlignment.Left
-KeyLabel.Parent = PassRow
+
+-- ============================================================================
+-- MODULE 6: TARGET AURA (Player Dropdown + Auto Refresh + Warnings)
+-- ============================================================================
+local targetAuraConn
+local targetIgnore = OverlapParams.new()
+targetIgnore.FilterType = Enum.RaycastFilterType.Include
+
+local function enableTargetAura()
+    targetAuraConn = RunService.PostSimulation:Connect(function()
+        if not _G.VampireHub.TargetAura.Active then return end
+        if next(_G.VampireHub.TargetAura.Targets) == nil then return end
+        local char = LocalPlayer.Character
+        if not char then return end
+        local chars = {}
+        for userId, _ in pairs(_G.VampireHub.TargetAura.Targets) do
+            local plr = Players:GetPlayerByUserId(userId)
+            if plr and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                table.insert(chars, plr.Character)
+            end
+        end
+        if #chars == 0 then return end
+        targetIgnore.FilterDescendantsInstances = chars
+        for _, tool in ipairs(char:GetChildren()) do
+            if tool:IsA("Tool") then
+                local tp = tool:FindFirstChildWhichIsA("TouchTransmitter", true)
+                tp = tp and tp.Parent
+                if tp then
+                    local parts = workspace:GetPartBoundsInBox(tp.CFrame, tp.Size + Vector3.new(30,30,30), targetIgnore)
+                    for _, p in ipairs(parts) do
+                        pcall(firetouchinterest, tp, p, 0)
+                        pcall(firetouchinterest, tp, p, 1)
+                    end
+                end
+            end
+        end
+    end)
 end
--- 10. Populate VAMPIRE HUBS Destination Page
-local VampireHubsTitle = Instance.new("TextLabel")
-VampireHubsTitle.Size = UDim2.new(1, 0, 0, 20)
-VampireHubsTitle.BackgroundTransparency = 1
-VampireHubsTitle.Text = "🩸 VAMPIRE HUBS INTERFACE"
-VampireHubsTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-VampireHubsTitle.Font = Enum.Font.GothamBold
-VampireHubsTitle.TextSize = 12
-VampireHubsTitle.Parent = VampireHubsPage
-local ButtonContainer = Instance.new("ScrollingFrame")
-ButtonContainer.Size = UDim2.new(1, -10, 1, -40)
-ButtonContainer.Position = UDim2.new(0, 5, 0, 35)
-ButtonContainer.BackgroundTransparency = 1
-ButtonContainer.BorderSizePixel = 0
-ButtonContainer.CanvasSize = UDim2.new(0, 0, 0, 250)
-ButtonContainer.ScrollBarThickness = 5
-ButtonContainer.Parent = VampireHubsPage
-local ButtonGridLayout = Instance.new("UIGridLayout")
-ButtonGridLayout.CellSize = UDim2.new(0, 135, 0, 32)
-ButtonGridLayout.CellPadding = UDim2.new(0, 8, 0, 8)
-ButtonGridLayout.SortOrder = Enum.SortOrder.LayoutOrder
-ButtonGridLayout.Parent = ButtonContainer
-local function CreateHubButton(text, layoutOrder)
-local Btn = Instance.new("TextButton")
-Btn.Name = text:gsub(" ", "") .. "_Btn"
-Btn.Text = text
-Btn.TextColor3 = Color3.fromRGB(230, 230, 230)
-Btn.BackgroundColor3 = Color3.fromRGB(24, 24, 24)
-Btn.Font = Enum.Font.GothamSemibold
-Btn.TextSize = 11
-Btn.LayoutOrder = layoutOrder
-Btn.Parent = ButtonContainer
-local Corner = Instance.new("UICorner")
-Corner.CornerRadius = UDim.new(0, 5)
-Corner.Parent = Btn
-local Stroke = Instance.new("UIStroke")
-Stroke.Color = Color3.fromRGB(45, 45, 45)
-Stroke.Thickness = 1.2
-Stroke.Parent = Btn
-Btn.MouseEnter:Connect(function()
-TweenService:Create(Btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(36, 15, 18), TextColor3 = Color3.fromRGB(255, 255, 255)}):Play()
-TweenService:Create(Stroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(255, 0, 51)}):Play()
-end)
-Btn.MouseLeave:Connect(function()
-TweenService:Create(Btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(24, 24, 24), TextColor3 = Color3.fromRGB(230, 230, 230)}):Play()
-TweenService:Create(Stroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(45, 45, 45)}):Play()
-end)
-return Btn
+
+local function disableTargetAura()
+    if targetAuraConn then targetAuraConn:Disconnect(); targetAuraConn = nil end
 end
-local CooldownBtn = CreateHubButton("No CoolDown", 1)
-local RespawnBtn = CreateHubButton("Respawn", 2)
-local GetToolsBtn = CreateHubButton("Get Tools", 3)
-local UseToolsBtn = CreateHubButton("Use Tools", 4)
-local LoopbringBtn = CreateHubButton("Loopbring", 5)
--- Core Remote Execution Mapping Using Exact Literal Formats
-CooldownBtn.MouseButton1Click:Connect(function()
-pcall(function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/Jay-The-Goat/VAMPIRE-HUBS/refs/heads/main/No%20CoolDown"))()
-end)
-end)
-RespawnBtn.MouseButton1Click:Connect(function()
-pcall(function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/Jay-The-Goat/VAMPIRE-HUBS/refs/heads/main/respawn"))()
-end)
-end)
-GetToolsBtn.MouseButton1Click:Connect(function()
-pcall(function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/Jay-The-Goat/VAMPIRE-HUBS/refs/heads/main/GET%20TOOLS"))()
-end)
-end)
-UseToolsBtn.MouseButton1Click:Connect(function()
-pcall(function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/Jay-The-Goat/VAMPIRE-HUBS/refs/heads/main/USE%20TOOLS"))()
-end)
-end)
-LoopbringBtn.MouseButton1Click:Connect(function()
-pcall(function()
--- Dynamic URL rewrite translates blob views into loadable plain-text dynamically
-local targetUrl = "https://github.com/Jay-The-Goat/VAMPIRE-HUBS/blob/main/LoopBring"
-local cleanUrl = targetUrl:gsub("github.com", "raw.githubusercontent.com"):gsub("/blob/", "/refs/heads/")
-loadstring(game:HttpGet(cleanUrl))()
-end)
-end)
--- 11. Populate SETTINGS Page
-local SetsTitle = Instance.new("TextLabel")
-SetsTitle.Size = UDim2.new(1, 0, 0, 25)
-SetsTitle.BackgroundTransparency = 1
-SetsTitle.Text = "🛠️ ENHANCEMENT SETTINGS"
-SetsTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-SetsTitle.Font = Enum.Font.GothamBold
-SetsTitle.TextSize = 14
-SetsTitle.TextXAlignment = Enum.TextXAlignment.Left
-SetsTitle.Parent = SetsPage
-local SettingsContainer = Instance.new("Frame")
-SettingsContainer.Size = UDim2.new(1, -10, 1, -40)
-SettingsContainer.Position = UDim2.new(0, 0, 0, 35)
-SettingsContainer.BackgroundTransparency = 1
-SettingsContainer.Parent = SetsPage
-local SettingsGrid = Instance.new("UIGridLayout")
-SettingsGrid.CellSize = UDim2.new(0, 210, 0, 40)
-SettingsGrid.CellPadding = UDim2.new(0, 12, 0, 12)
-SettingsGrid.SortOrder = Enum.SortOrder.LayoutOrder
-SettingsGrid.Parent = SettingsContainer
-local function CreateSettingToggle(titleText, subText, layoutOrder)
-local Frame = Instance.new("Frame")
-Frame.BackgroundColor3 = Color3.fromRGB(14, 14, 14)
-Frame.LayoutOrder = layoutOrder
-Frame.Parent = SettingsContainer
-local Corner = Instance.new("UICorner")
-Corner.CornerRadius = UDim.new(0, 4)
-Corner.Parent = Frame
-local Stroke = Instance.new("UIStroke")
-Stroke.Color = Color3.fromRGB(40, 40, 40)
-Stroke.Thickness = 1
-Stroke.Parent = Frame
-local Label = Instance.new("TextLabel")
-Label.Size = UDim2.new(1, -70, 0, 20)
-Label.Position = UDim2.new(0, 10, 0, 3)
-Label.BackgroundTransparency = 1
-Label.Text = titleText
-Label.TextColor3 = Color3.fromRGB(255, 255, 255)
-Label.Font = Enum.Font.GothamBold
-Label.TextSize = 11
-Label.TextXAlignment = Enum.TextXAlignment.Left
-Label.Parent = Frame
-local SubLabel = Instance.new("TextLabel")
-SubLabel.Size = UDim2.new(1, -70, 0, 15)
-SubLabel.Position = UDim2.new(0, 10, 0, 20)
-SubLabel.BackgroundTransparency = 1
-SubLabel.Text = subText
-SubLabel.TextColor3 = Color3.fromRGB(140, 140, 140)
-SubLabel.Font = Enum.Font.Gotham
-SubLabel.TextSize = 9
-SubLabel.TextXAlignment = Enum.TextXAlignment.Left
-SubLabel.Parent = Frame
-local ActionBtn = Instance.new("TextButton")
-ActionBtn.Size = UDim2.new(0, 50, 0, 24)
-ActionBtn.Position = UDim2.new(1, -60, 0.5, -12)
-ActionBtn.BackgroundColor3 = Color3.fromRGB(24, 24, 24)
-ActionBtn.Text = "OFF"
-ActionBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
-ActionBtn.Font = Enum.Font.GothamBold
-ActionBtn.TextSize = 10
-ActionBtn.Parent = Frame
-local BtnCorner = Instance.new("UICorner")
-BtnCorner.CornerRadius = UDim.new(0, 5)
-BtnCorner.Parent = ActionBtn
-local BtnStroke = Instance.new("UIStroke")
-BtnStroke.Color = Color3.fromRGB(50, 50, 50)
-BtnStroke.Thickness = 1.2
-BtnStroke.Parent = ActionBtn
-return ActionBtn, BtnStroke
+
+-- ============================================================================
+-- MODULE 7: LOOP BRING (PostSimulation Smooth)
+-- ============================================================================
+local loopBringConn
+local function enableLoopBring()
+    loopBringConn = RunService.PostSimulation:Connect(function()
+        if not _G.VampireHub.LoopBring.Active then return end
+        local myChar = LocalPlayer.Character
+        local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
+        if not myHRP then return end
+        for userId, _ in pairs(_G.VampireHub.LoopBring.Targets) do
+            local plr = Players:GetPlayerByUserId(userId)
+            if plr and plr.Character then
+                local tHRP = plr.Character:FindFirstChild("HumanoidRootPart")
+                if tHRP then
+                    tHRP.CFrame = myHRP.CFrame * CFrame.new(0, 0, -3)
+                    tHRP.Velocity = Vector3.zero
+                    tHRP.RotVelocity = Vector3.zero
+                end
+            end
+        end
+    end)
 end
-local SpeedBtn, SpeedStroke = CreateSettingToggle("speed", "Loop WalkSpeed to 200", 1)
-local JumpBtn, JumpStroke = CreateSettingToggle("jump", "Loop JumpPower to 150", 2)
-local SpeedEnabled = false
-local JumpEnabled = false
-SpeedBtn.MouseButton1Click:Connect(function()
-SpeedEnabled = not SpeedEnabled
-if SpeedEnabled then
-SpeedBtn.Text = "ON"
-TweenService:Create(SpeedBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(10, 35, 20), TextColor3 = Color3.fromRGB(0, 255, 100)}):Play()
-TweenService:Create(SpeedStroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(0, 255, 100)}):Play()
-else
-SpeedBtn.Text = "OFF"
-TweenService:Create(SpeedBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(24, 24, 24), TextColor3 = Color3.fromRGB(150, 150, 150)}):Play()
-TweenService:Create(SpeedStroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(50, 50, 50)}):Play()
+
+local function disableLoopBring()
+    if loopBringConn then loopBringConn:Disconnect(); loopBringConn = nil end
 end
+
+-- ============================================================================
+-- 🦇 VAMPIRE HUB UI CONSTRUCTION
+-- ============================================================================
+local Window = Library:Window({
+    Name = "VAMPIRE HUB 🦇",
+    SubName = "Ultimate Spawn Kill Suite",
+    Logo = "rbxassetid://114856413138528"
+})
+
+-- ==================== COMBAT PAGE ====================
+local CombatPage = Window:Page({ Name = "Combat", Icon = "rbxassetid://102973834692853" })
+local CombatSub = CombatPage:SubPage({ Name = "Combat Modules", Description = "Kill & Aura Controls", Icon = "rbxassetid://102973834692853" })
+
+local CombatLeft = CombatSub:Section({ Name = "Kill Modules", Description = "Aura & Respawn", Side = 1 })
+local CombatRight = CombatSub:Section({ Name = "Target Selection", Description = "Select players to target", Side = 2 })
+
+-- Kill Aura Toggle
+CombatLeft:Toggle({
+    Name = "Kill Aura",
+    Flag = "VH_KillAura",
+    Default = false,
+    Callback = function(v)
+        _G.VampireHub.KillAura.Active = v
+        if v then enableKillAura(); notify("🦇 Kill Aura", "Enabled — PostSimulation burst active", 2)
+        else disableKillAura() end
+    end
+})
+
+-- Target Aura Toggle + Warning System
+CombatLeft:Toggle({
+    Name = "Target Aura",
+    Flag = "VH_TargetAura",
+    Default = false,
+    Callback = function(v)
+        _G.VampireHub.TargetAura.Active = v
+        if v then
+            if next(_G.VampireHub.TargetAura.Targets) == nil then
+                warnNotify("Target Aura", "No players selected! Use the dropdown on the right.")
+            else
+                enableTargetAura()
+                notify("🦇 Target Aura", "Enabled — Targeting " .. #_G.VampireHub.TargetAura.Targets .. " player(s)", 2)
+            end
+        else
+            disableTargetAura()
+        end
+    end
+})
+
+-- Respawn Toggle
+CombatLeft:Toggle({
+    Name = "Instant Respawn",
+    Flag = "VH_Respawn",
+    Default = false,
+    Callback = function(v)
+        _G.VampireHub.Respawn.Active = v
+        if v then enableRespawn(); notify("🦇 Instant Respawn", "Enabled — Press R for manual respawn", 2)
+        else disableRespawn() end
+    end
+})
+
+CombatLeft:Keybind({
+    Name = "Manual Respawn Key",
+    Flag = "VH_RespawnKey",
+    Default = Enum.KeyCode.R,
+    Mode = "Hold",
+    Callback = function(state)
+        if state and _G.VampireHub.Respawn.Active and LocalPlayer.Character then
+            triggerInstantRespawn()
+        end
+    end
+})
+
+-- ⭐ TARGET AURA PLAYER DROPDOWN (Auto-Refresh)
+local targetDropdownItems = {}
+local function buildPlayerList()
+    local items = {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer then table.insert(items, p.Name) end
+    end
+    return items
+end
+
+local TargetDropdown = CombatRight:Dropdown({
+    Name = "Target Aura Players",
+    Flag = "VH_TargetAuraPlayers",
+    Default = "",
+    Items = buildPlayerList(),
+    Multi = true,
+    Callback = function(selected)
+        -- Convert names to UserId map
+        table.clear(_G.VampireHub.TargetAura.Targets)
+        if type(selected) == "table" then
+            for _, name in ipairs(selected) do
+                local plr = Players:FindFirstChild(name)
+                if plr then _G.VampireHub.TargetAura.Targets[plr.UserId] = true end
+            end
+        elseif type(selected) == "string" and selected ~= "" then
+            local plr = Players:FindFirstChild(selected)
+            if plr then _G.VampireHub.TargetAura.Targets[plr.UserId] = true end
+        end
+        -- Warn if targets selected but aura off
+        if next(_G.VampireHub.TargetAura.Targets) ~= nil and not _G.VampireHub.TargetAura.Active then
+            warnNotify("Target Aura OFF", "Player(s) selected but Target Aura is disabled! Enable it to attack.")
+        end
+    end
+})
+
+-- Auto-refresh player list on join/leave
+Players.PlayerAdded:Connect(function()
+    task.defer(function()
+        TargetDropdown:Refresh(buildPlayerList())
+    end)
 end)
-JumpBtn.MouseButton1Click:Connect(function()
-JumpEnabled = not JumpEnabled
-if JumpEnabled then
-JumpBtn.Text = "ON"
-TweenService:Create(JumpBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(10, 35, 20), TextColor3 = Color3.fromRGB(0, 255, 100)}):Play()
-TweenService:Create(JumpStroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(0, 255, 100)}):Play()
-else
-JumpBtn.Text = "OFF"
-TweenService:Create(JumpBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(24, 24, 24), TextColor3 = Color3.fromRGB(150, 150, 150)}):Play()
-TweenService:Create(JumpStroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(50, 50, 50)}):Play()
-end
+Players.PlayerRemoving:Connect(function()
+    task.defer(function()
+        TargetDropdown:Refresh(buildPlayerList())
+        -- Clean up removed players from target list
+        for uid, _ in pairs(_G.VampireHub.TargetAura.Targets) do
+            if not Players:GetPlayerByUserId(uid) then
+                _G.VampireHub.TargetAura.Targets[uid] = nil
+            end
+        end
+    end)
 end)
-task.spawn(function()
-while task.wait() do
-pcall(function()
-local char = LocalPlayer.Character
-local hum = char and char:FindFirstChildOfClass("Humanoid")
-if hum then
-if SpeedEnabled then hum.WalkSpeed = 200 end
-if JumpEnabled then
-hum.UseJumpPower = true
-hum.JumpPower = 150
-end
-end
-end)
-end
-end)
--- Helper function to perform a clean system verification unlock sequence
-local function UnlockSystemGUI()
-LoginGateFrame.Visible = false
-MainHub.Visible = true
-ToggleHubBtn.Visible = true
-RouteToTab("VAMPIREHUBS")
-end
--- 12. Connect Gateway Authentication Action Link
-EnterBtn.MouseButton1Click:Connect(function()
-local targetPassword = GetCurrentPassword()
-if GateInput.Text == targetPassword then
-GateStatus.TextColor3 = Color3.fromRGB(0, 255, 100)
-GateStatus.Text = "System Decrypted. Loading Hub Layout..."
-task.wait(0.8)
-UnlockSystemGUI()
-else
-GateStatus.TextColor3 = Color3.fromRGB(255, 0, 51)
-GateStatus.Text = "Decryption Failed. Incorrect passkey parameter."
-end
-end)
--- Bypasses the login barrier instantly on execute if player matches the OWNER_USERNAME parameter
-if IS_OWNER then
-UnlockSystemGUI()
-else
-LoginGateFrame.Visible = true
-end
+
+-- Loop Bring Player Dropdown
+local LoopBringDropdown = CombatRight:Dropdown({
+    Name = "Loop Bring Players",
+    Flag = "VH_LoopBringPlayers",
+    Default = "",
+    Items = buildPlayerList(),
+    Multi = true,
+    Callback = function(selected)
+        table.clear(_G.VampireHub.LoopBring.Targets)
+        if type(selected) == "table" then
+            for _, name in ipairs(selected) do
+                local plr = Players:FindFirstChild(name)
+                if plr then _G.VampireHub.LoopBring.Targets[plr.UserId] = true end
+            end
+        elseif type(selected) == "string" and selected ~= "" then
+            local plr = Players:FindFirstChild(selected)
+            if plr then _G.VampireHub.LoopBring.Targets[plr.UserId] = true end
+        end
+    end
+})
+
+Players.PlayerAdded:Connect(function() task.defer(function() LoopBringDropdown:Refresh(buildPlayerList()) end) end)
+Players.PlayerRemoving:Connect(function() task.defer(function() LoopBringDropdown:Refresh(buildPlayerList()) end) end)
+
+CombatRight:Toggle({
+    Name = "Loop Bring",
+    Flag = "VH_LoopBring",
+    Default = false,
+    Callback = function(v)
+        _G.VampireHub.LoopBring.Active = v
+        if v then enableLoopBring(); notify("🦇 Loop Bring", "Enabled — Smooth PostSimulation bring", 2)
+        else disableLoopBring() end
+    end
+})
+
+-- ==================== TOOLS PAGE ====================
+local ToolsPage = Window:Page({ Name = "Tools", Icon = "rbxassetid://102973834692853" })
+local ToolsSub = ToolsPage:SubPage({ Name = "Tool Automation", Description = "Collect, Use & Speed", Icon = "rbxassetid://102973834692853" })
+
+local ToolsLeft = ToolsSub:Section({ Name = "Tool Modules", Description = "Auto Collect & Activate", Side = 1 })
+local ToolsRight = ToolsSub:Section({ Name = "Speed Control", Description = "Break the sound barrier 😈", Side = 2 })
+
+ToolsLeft:Toggle({
+    Name = "Get Tools (Auto Collect)",
+    Flag = "VH_GetTools",
+    Default = false,
+    Callback = function(v)
+        _G.VampireHub.GetTools.Active = v
+        if v then enableGetTools(); notify("🦇 Get Tools", "Enabled — Event-driven collection", 2)
+        else disableGetTools() end
+    end
+})
+
+ToolsLeft:Toggle({
+    Name = "Use Tools (Auto Activate)",
+    Flag = "VH_UseTools",
+    Default = false,
+    Callback = function(v)
+        _G.VampireHub.UseTools.Active = v
+        if v then
+            enableUseTools()
+            local spd = _G.VampireHub.UseTools.Speed
+            if spd >= 8 then
+                warnNotify("😈 MAX SPEED", "Sound-breaking activation enabled! Audio overload imminent.")
+            else
+                notify("🦇 Use Tools", "Enabled — Speed: " .. tostring(spd), 2)
+            end
+        else
+            disableUseTools()
+        end
+    end
+})
+
+ToolsLeft:Toggle({
+    Name = "Noclip (PhysicsService)",
+    Flag = "VH_Noclip",
+    Default = true,
+    Callback = function(v)
+        _G.VampireHub.UseTools.Noclip = v
+        if v and LocalPlayer.Character then applyNoclip(LocalPlayer.Character) end
+    end
+})
+
+-- ⭐ SPEED SLIDER (1-10, 10 = SOUND BREAKING)
+ToolsRight:Slider({
+    Name = "Activation Speed 😈",
+    Flag = "VH_ToolSpeed",
+    Default = 1,
+    Min = 1,
+    Max = 10,
+    Decimals = 0,
+    Suffix = "x",
+    Callback = function(val)
+        _G.VampireHub.UseTools.Speed = val
+        if _G.VampireHub.UseTools.Active then
+            startSoundBreakingLoop() -- Restart with new burst count
+        end
+        if val >= 8 then
+            warnNotify("😈 DANGER ZONE", "Speed " .. tostring(val) .. "x — Game audio will break!")
+        end
+    end
+})
+
+ToolsRight:Label({ Name = "Speed 8-10 breaks game audio" })
+ToolsRight:Label({ Name = "via mass Activate() flooding" })
+
+-- ==================== EXPLOITS PAGE ====================
+local ExploitsPage = Window:Page({ Name = "Exploits", Icon = "rbxassetid://102973834692853" })
+local ExploitsSub = ExploitsPage:SubPage({ Name = "Engine Exploits", Description = "Cooldown & Yield Bypass", Icon = "rbxassetid://102973834692853" })
+
+local ExploitsLeft = ExploitsSub:Section({ Name = "No Cooldown", Description = "Eliminate all yields", Side = 1 })
+local ExploitsRight = ExploitsSub:Section({ Name = "Speed Control", Description = "Global yield multiplier", Side = 2 })
+
+ExploitsLeft:Toggle({
+    Name = "No Cooldown",
+    Flag = "VH_NoCooldown",
+    Default = false,
+    Callback = function(v)
+        _G.VampireHub.NoCooldown.Active = v
+        if v then
+            applyNoCooldown(_G.VampireHub.NoCooldown.SpeedMultiplier)
+            notify("⚡ No Cooldown", "Enabled — All yields eliminated", 2)
+        else
+            removeNoCooldown()
+        end
+    end
+})
+
+-- ⭐ NO COOLDOWN SPEED SLIDER
+ExploitsRight:Slider({
+    Name = "Cooldown Speed Multiplier",
+    Flag = "VH_CooldownSpeed",
+    Default = 1,
+    Min = 1,
+    Max = 20,
+    Decimals = 0,
+    Suffix = "x",
+    Callback = function(val)
+        _G.VampireHub.NoCooldown.SpeedMultiplier = val
+        if _G.VampireHub.NoCooldown.Active then
+            applyNoCooldown(val)
+        end
+    end
+})
+
+ExploitsRight:Label({ Name = "Higher = faster yield bypass" })
+ExploitsRight:Label({ Name = "Affects wait/task.wait globally" })
+
+-- ============================================================================
+-- INITIAL STATUS
+-- ============================================================================
+notify("🦇 VAMPIRE HUB", "All modules loaded. Ready to dominate.", 4)
+print("✅ VAMPIRE HUB 🦇 LOADED — All 7 Modules Integrated")
