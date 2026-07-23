@@ -1,180 +1,80 @@
+-- ============================================================================
+-- ULTIMATE TOOL COLLECTOR - EVENT DRIVEN & PROXIMITY PROMPT OPTIMIZED
+-- ============================================================================
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local Tycoons = workspace:WaitForChild("Tycoons")
-local RunService = game:GetService("RunService")
-local CoreGui = game:GetService("CoreGui")
 
--- Global variable for state control
-_G.ScriptEnabled = true
+-- Global State for Future UI Integration
+_G.ToolCollectorConfig = _G.ToolCollectorConfig or { Active = true }
 
--- ============================================================================
--- CREATE FIXED SCREEN UI BUTTON (SHIFTED RADICALLY DOWNWARD)
--- ============================================================================
-local ScreenGui = Instance.new("ScreenGui")
-local ToggleButton = Instance.new("TextButton")
-local UICorner = Instance.new("UICorner")
-local UIStroke = Instance.new("UIStroke")
-
--- Safe injection to avoid detection or disruption
-ScreenGui.Name = "ToolCollectorUI_" .. math.random(1000, 9999)
-ScreenGui.ResetOnSpawn = false
-
--- Fallback to PlayerGui if executor doesn't support CoreGui
-local success, err = pcall(function() ScreenGui.Parent = CoreGui end)
-if not success then ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
-
--- Configure Fixed Toggle Button
-ToggleButton.Size = UDim2.new(0, 130, 0, 40)
-ToggleButton.AnchorPoint = Vector2.new(1, 1) 
--- Shifted from -160 to -60 to move it a massive distance down the screen
-ToggleButton.Position = UDim2.new(1, -25, 1, -60) 
-
-ToggleButton.BackgroundColor3 = Color3.fromRGB(15, 15, 15) -- Pure Black
-ToggleButton.Text = "COLLECTOR: ON"
-ToggleButton.TextColor3 = Color3.fromRGB(255, 0, 0) -- Bright Red Text
-ToggleButton.Font = Enum.Font.GothamBold
-ToggleButton.TextSize = 13
-ToggleButton.Active = true
-ToggleButton.Draggable = false -- Locked in place
-ToggleButton.Parent = ScreenGui
-
--- Clean rounded corners
-UICorner.CornerRadius = UDim.new(0, 8)
-UICorner.Parent = ToggleButton
-
--- Sleek red border outline around the black button
-UIStroke.Color = Color3.fromRGB(255, 0, 0)
-UIStroke.Thickness = 2
-UIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-UIStroke.Parent = ToggleButton
-
--- Toggle Logic Function
-local function UpdateUIState()
-    if _G.ScriptEnabled then
-        ToggleButton.Text = "COLLECTOR: ON"
-        ToggleButton.TextColor3 = Color3.fromRGB(255, 0, 0) -- Bright Red
-        UIStroke.Color = Color3.fromRGB(255, 0, 0) -- Bright Red Border
-    else
-        ToggleButton.Text = "COLLECTOR: OFF"
-        ToggleButton.TextColor3 = Color3.fromRGB(130, 0, 0) -- Dimmed Dark Red
-        UIStroke.Color = Color3.fromRGB(80, 0, 0) -- Dimmed Border
-    end
-end
-
-ToggleButton.MouseButton1Click:Connect(function()
-    _G.ScriptEnabled = not _G.ScriptEnabled
-    UpdateUIState()
-end)
-
--- ============================================================================
--- MAIN CORE LOGIC (OPTIMIZED FOR SPEED)
--- ============================================================================
-local excludedBases = { "Insanity", "Giant", "Dark", "Spike", "Web", "Strong" }
-local allowedBases = { "Stone", "Magic", "Storm", "Robotic" }
-
-local allowedBasesSet = {}
-for _, base in ipairs(allowedBases) do allowedBasesSet[base] = true end
-
-local function IsValidBase(baseName)
-    if not baseName then return false end
-    return allowedBasesSet[baseName] or not table.find(excludedBases, baseName)
-end
-
+local excludedBases = { Insanity=true, Giant=true, Dark=true, Spike=true, Web=true, Strong=true }
 local ValidGivers = {}
-local GiverCount = 0
+local CachedPrompts = {}
 
-local function CacheGivers()
-    if not _G.ScriptEnabled then return end
-    local temp = {}
-    local count = 0
-    local descendants = Tycoons:GetDescendants()
+-- Cache valid gear givers and their proximity prompts
+local function cacheGivers()
+    table.clear(ValidGivers)
+    table.clear(CachedPrompts)
     
-    for i = 1, #descendants do
-        local v = descendants[i]
-        if v:IsA("TouchTransmitter") then
-            local part = v.Parent
-            local parentGiver = part and part.Parent
-            if parentGiver and parentGiver.Name:find("GearGiver1") then
-                local baseParent = parentGiver.Parent
-                if IsValidBase(baseParent and baseParent.Name) then
-                    count = count + 1
-                    temp[count] = part
+    for _, descendant in ipairs(Tycoons:GetDescendants()) do
+        if descendant:IsA("TouchTransmitter") then
+            local part = descendant.Parent
+            local giver = part and part.Parent
+            if giver and giver.Name:find("GearGiver") then
+                local base = giver.Parent
+                if base and not excludedBases[base.Name] then
+                    table.insert(ValidGivers, part)
+                    -- Cache any ProximityPrompts for instant trigger
+                    local prompt = giver:FindFirstChildWhichIsA("ProximityPrompt", true)
+                    if prompt then table.insert(CachedPrompts, prompt) end
                 end
             end
         end
     end
-    ValidGivers = temp
-    GiverCount = count
 end
 
-local function TurboCollect()
-    if not _G.ScriptEnabled then return end
+-- Instant Collection: Trigger Prompts + Simulate Touch
+local function turboCollect()
+    if not _G.ToolCollectorConfig.Active then return end
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
     
-    local Character = LocalPlayer.Character
-    local Root = Character and Character:FindFirstChild("HumanoidRootPart")
-    if not Root or GiverCount == 0 then return end
-
-    local givers = ValidGivers
-    for i = 1, GiverCount do
-        local part = givers[i]
-        firetouchinterest(Root, part, 0)
-        firetouchinterest(Root, part, 1)
+    -- Priority 1: Instant ProximityPrompt Trigger (Fastest Method)
+    for _, prompt in ipairs(CachedPrompts) do
+        pcall(function() prompt:Trigger(LocalPlayer) end)
+    end
+    
+    -- Priority 2: Direct CFrame overlap for TouchTransmitters
+    for _, part in ipairs(ValidGivers) do
+        pcall(function()
+            firetouchinterest(root, part, 0)
+            firetouchinterest(root, part, 1)
+        end)
     end
 end
 
-local function OnRespawn(Character)
-    if not _G.ScriptEnabled then return end
-    
-    local Root = Character:WaitForChild("HumanoidRootPart", 1)
-    if not Root then return end
-    
-    CacheGivers()
-    
-    -- Triple collection on respawn for faster grab
-    TurboCollect()
-    TurboCollect()
-    TurboCollect()
-    
-    -- Reduced wait time from 0.05 to 0.02 for faster collection
-    local t = os.clock()
-    while os.clock() - t < 0.02 and _G.ScriptEnabled do
-        TurboCollect()
-    end
-end
+-- Event: Collect on Respawn
+LocalPlayer.CharacterAdded:Connect(function(char)
+    if not _G.ToolCollectorConfig.Active then return end
+    task.defer(function()
+        cacheGivers()
+        -- Burst collect on spawn
+        for _ = 1, 3 do turboCollect() end
+    end)
+end)
 
-Tycoons.DescendantAdded:Connect(function(descendant)
-    if _G.ScriptEnabled and descendant:IsA("TouchTransmitter") then
-        CacheGivers()
-        TurboCollect()
+-- Event: Dynamic Giver Detection
+Tycoons.DescendantAdded:Connect(function(desc)
+    if _G.ToolCollectorConfig.Active and desc:IsA("TouchTransmitter") then
+        cacheGivers()
+        turboCollect()
     end
 end)
 
--- OPTIMIZED: Use RenderStepped instead of Heartbeat for faster collection
--- Also add multiple collections per frame
-task.spawn(function()
-    while true do
-        if _G.ScriptEnabled then
-            TurboCollect()
-            TurboCollect()
-        end
-        RunService.RenderStepped:Wait()
-    end
-end)
+-- Initial Setup
+cacheGivers()
+if LocalPlayer.Character then turboCollect() end
 
--- Secondary faster collection loop running 3x per heartbeat
-task.spawn(function()
-    while true do
-        if _G.ScriptEnabled then
-            TurboCollect()
-        end
-        task.wait(0.001) -- 1ms interval for ultra-fast collection
-    end
-end)
-
-LocalPlayer.CharacterAdded:Connect(OnRespawn)
-
--- Initial run setup
-CacheGivers()
-if LocalPlayer.Character then
-    task.spawn(OnRespawn, LocalPlayer.Character)
-end
+print("✅ [UPGRADED] Tool Collector Loaded - Event Driven, No UI")
