@@ -1,106 +1,90 @@
--- ⚡ FRAME SYNCED MULTI TARGET KILL AURA
-
+-- ============================================================================
+-- KILL AURA - POSTSIMULATION BURST & PARALLEL REMOTE
+-- ============================================================================
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-
 local LocalPlayer = Players.LocalPlayer
 
--- CONFIG
-local RANGE = 35
-local AURA_SIZE = Vector3.new(35,35,35)
+-- Global State for Future UI Integration
+_G.KillAuraConfig = _G.KillAuraConfig or { 
+    Active = true, 
+    Range = 35,
+    AuraSize = Vector3.new(35, 35, 35),
+    RemoteRate = 0.05,
+    TouchBurst = 3
+}
 
-local REMOTE_RATE = 0.1
-local TOUCH_BURST = 2
-
--- STATE
-local lastRemote = 0
-local targetCache = {}
 local auraParams = OverlapParams.new()
 auraParams.FilterType = Enum.RaycastFilterType.Include
+local lastRemote = 0
 
--- helpers
 local function getHRP(plr)
-	local c = plr.Character
-	return c and c:FindFirstChild("HumanoidRootPart")
+    local c = plr.Character
+    return c and c:FindFirstChild("HumanoidRootPart")
 end
 
 local function buildTargets()
-
-	local myRoot = getHRP(LocalPlayer)
-	if not myRoot then return {} end
-
-	local t = {}
-
-	for _,p in ipairs(Players:GetPlayers()) do
-		if p ~= LocalPlayer then
-			local r = getHRP(p)
-			if r and (r.Position - myRoot.Position).Magnitude <= RANGE then
-				table.insert(t,p.Character)
-			end
-		end
-	end
-
-	return t
+    local myRoot = getHRP(LocalPlayer)
+    if not myRoot then return {} end
+    local t = {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer then
+            local r = getHRP(p)
+            if r and (r.Position - myRoot.Position).Magnitude <= _G.KillAuraConfig.Range then
+                table.insert(t, p.Character)
+            end
+        end
+    end
+    return t
 end
 
-local function tap(part,enemyPart)
-	for i=1,TOUCH_BURST do
-		pcall(firetouchinterest,part,enemyPart,0)
-		pcall(firetouchinterest,part,enemyPart,1)
-	end
+local function burstTap(part, enemyPart)
+    for _ = 1, _G.KillAuraConfig.TouchBurst do
+        pcall(firetouchinterest, part, enemyPart, 0)
+        pcall(firetouchinterest, part, enemyPart, 1)
+    end
 end
 
-RunService.Heartbeat:Connect(function()
-
-	local char = LocalPlayer.Character
-	if not char then return end
-
-	targetCache = buildTargets()
-	if #targetCache == 0 then return end
-
-	auraParams.FilterDescendantsInstances = targetCache
-
-	local now = os.clock()
-	local fireRemote = (now - lastRemote) > REMOTE_RATE
-
-	for _,tool in ipairs(char:GetChildren()) do
-		if tool:IsA("Tool") then
-
-			if tool.Parent ~= char then
-				tool.Parent = char
-			end
-
-			local touchPart = tool:FindFirstChildWhichIsA("TouchTransmitter",true)
-			touchPart = touchPart and touchPart.Parent
-
-			local fightEvent = tool:FindFirstChild("FightEvent")
-
-			-- remote strike cadence
-			if fireRemote and fightEvent then
-				lastRemote = now
-				pcall(function()
-					fightEvent:FireServer()
-				end)
-			end
-
-			-- physical aura strike
-			if touchPart then
-
-				local parts = workspace:GetPartBoundsInBox(
-					touchPart.CFrame,
-					touchPart.Size + AURA_SIZE,
-					auraParams
-				)
-
-				for _,enemyPart in ipairs(parts) do
-					tap(touchPart,enemyPart)
-				end
-
-			end
-
-		end
-	end
-
+-- PostSimulation replaces Heartbeat for maximum tick rate
+RunService.PostSimulation:Connect(function()
+    if not _G.KillAuraConfig.Active then return end
+    local char = LocalPlayer.Character
+    if not char then return end
+    
+    local targets = buildTargets()
+    if #targets == 0 then return end
+    auraParams.FilterDescendantsInstances = targets
+    
+    local now = os.clock()
+    local shouldFireRemote = (now - lastRemote) > _G.KillAuraConfig.RemoteRate
+    
+    for _, tool in ipairs(char:GetChildren()) do
+        if tool:IsA("Tool") then
+            -- Parallel remote firing (non-blocking)
+            if shouldFireRemote then
+                local fightEvent = tool:FindFirstChild("FightEvent")
+                if fightEvent then
+                    task.spawn(function() pcall(function() fightEvent:FireServer() end) end)
+                end
+            end
+            
+            -- Physical aura burst
+            local touchPart = tool:FindFirstChildWhichIsA("TouchTransmitter", true)
+            touchPart = touchPart and touchPart.Parent
+            if touchPart then
+                local parts = workspace:GetPartBoundsInBox(
+                    touchPart.CFrame,
+                    touchPart.Size + _G.KillAuraConfig.AuraSize,
+                    auraParams
+                )
+                for _, enemyPart in ipairs(parts) do
+                    burstTap(touchPart, enemyPart)
+                end
+            end
+        end
+    end
+    
+    if shouldFireRemote then lastRemote = now end
 end)
 
-print("⚡ Multi Target Aura Loaded")
+print("⚡ [UPGRADED] Kill Aura Loaded - PostSimulation Burst, No UI")
