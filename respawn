@@ -1,246 +1,115 @@
+-- ============================================================================
+-- ULTIMATE RESPAWN SCRIPT - EVENT DRIVEN & UI STRIPPED
+-- ============================================================================
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local UserInputService = game:GetService("UserInputService")
-local CoreGui = game:GetService("CoreGui")
-local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 
--- ============================================================================
--- ULTIMATE RESPAWN SCRIPT - INSTANT RESPAWN WHEN KILLED (NO AUTO-KILL)
--- ============================================================================
+-- Global State for Future UI Integration
+_G.RespawnConfig = _G.RespawnConfig or { Active = true }
 
--- Force engine to remove the default 3-second spawn queue delay
+-- Force engine settings for minimum latency
 pcall(function()
     Players.RespawnTime = 0
     settings().Physics.ThrottleAdjustTime = 0
     settings().Physics.IsReceiveAgeOfReplication = false
 end)
 
-_G.RespawnScript = _G.RespawnScript or { Active = false, Connections = {}, RespawnBuffer = 0 }
-
-local function disconnectAll()
-    for _, connection in ipairs(_G.RespawnScript.Connections) do
-        if connection and connection.Connected then
-            connection:Disconnect()
+-- Cache respawn remotes once instead of searching every death
+local RespawnRemotes = {}
+local function cacheRespawnMethods()
+    table.clear(RespawnRemotes)
+    local function search(parent)
+        for _, v in ipairs(parent:GetDescendants()) do
+            if v:IsA("RemoteEvent") or v:IsA("RemoteFunction") then
+                local n = v.Name:lower()
+                if n:find("respawn") or n:find("reset") or n:find("spawn") or n:find("death") or n:find("guide") then
+                    table.insert(RespawnRemotes, v)
+                end
+            end
         end
     end
-    _G.RespawnScript.Connections = {}
+    pcall(search, ReplicatedStorage)
+    pcall(search, LocalPlayer)
 end
+cacheRespawnMethods()
 
--- ============================================================================
--- 1. INSTANT SERVER SYNC - REMOVE ALL NETWORK DELAYS
--- ============================================================================
-local function instantServerSync()
+-- Instant Server Sync & Collision Bypass
+local function instantServerSync(char)
     pcall(function()
-        if LocalPlayer.Character then
-            LocalPlayer.Character.Head.CanCollide = false
-            LocalPlayer.Character.HumanoidRootPart.CanCollide = false
+        if char then
+            local head = char:FindFirstChild("Head")
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            if head then head.CanCollide = false end
+            if hrp then hrp.CanCollide = false end
         end
     end)
 end
 
--- ============================================================================
--- 2. MULTI-REMOTE DETECTION - FIND ALL RESPAWN METHODS
--- ============================================================================
-local function findAllRespawnMethods()
-    local methods = {}
-    
-    -- Search entire ReplicatedStorage recursively
-    local function searchDescendants(parent)
-        for _, descendant in pairs(parent:GetDescendants()) do
-            if descendant:IsA("RemoteEvent") or descendant:IsA("RemoteFunction") then
-                local name = descendant.Name:lower()
-                if name:find("respawn") or name:find("reset") or name:find("spawn") or name:find("death") or name:find("guide") then
-                    table.insert(methods, descendant)
-                end
+-- Physics Reset & Ragdoll Prevention
+local function optimizeCharacter(char)
+    task.spawn(function()
+        if not char then return end
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            hrp.Velocity = Vector3.zero
+            hrp.RotVelocity = Vector3.zero
+        end
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then hum.PlatformStand = false end
+        for _, p in ipairs(char:GetDescendants()) do
+            if p:IsA("BasePart") then
+                p.Velocity = Vector3.zero
+                p.RotVelocity = Vector3.zero
+            elseif p:IsA("Motor6D") or p:IsA("Weld") then
+                p.Enabled = true
             end
         end
-    end
-    
-    pcall(function() searchDescendants(ReplicatedStorage) end)
-    pcall(function() searchDescendants(LocalPlayer) end)
-    
-    return methods
+    end)
 end
 
--- ============================================================================
--- 3. INSTANT RESPAWN - ONLY TRIGGERS WHEN PLAYER DIES
--- ============================================================================
-local function instantRespawn()
-    local char = LocalPlayer.Character
-    if not char then return end
+-- Instant Respawn Trigger
+local function triggerInstantRespawn()
+    if not _G.RespawnConfig.Active then return end
     
-    -- Prevent respawn spam
-    if os.clock() - _G.RespawnScript.RespawnBuffer < 0.1 then
-        return
-    end
-    _G.RespawnScript.RespawnBuffer = os.clock()
-    
-    instantServerSync()
-    
-    -- Thread 1: Fire all remote events
+    -- Fire all cached remotes in parallel
     task.spawn(function()
-        local methods = findAllRespawnMethods()
-        for _, remote in pairs(methods) do
+        for _, remote in ipairs(RespawnRemotes) do
             pcall(function()
-                if remote:IsA("RemoteEvent") then
-                    remote:FireServer()
-                end
+                if remote:IsA("RemoteEvent") then remote:FireServer()
+                elseif remote:IsA("RemoteFunction") then remote:InvokeServer() end
             end)
         end
     end)
     
-    -- Thread 2: Direct character reset
-    task.spawn(function()
-        pcall(function()
-            if ReplicatedStorage:FindFirstChild("Guide") then
-                ReplicatedStorage.Guide:FireServer()
-            end
-        end)
-    end)
-    
-    -- Thread 3: Reset character to nil to trigger respawn
-    task.spawn(function()
-        task.wait(0.05)
-        pcall(function()
-            LocalPlayer.Character = nil
-        end)
+    -- Direct character nil to force engine respawn
+    task.delay(0.02, function()
+        pcall(function() LocalPlayer.Character = nil end)
     end)
 end
 
--- ============================================================================
--- 4. PHYSICS RESET - INSTANT MOMENTUM CLEAR
--- ============================================================================
-local function resetPhysics(character)
-    if not character then return end
-    
-    task.spawn(function()
-        local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
-        if humanoidRootPart then
-            humanoidRootPart.Velocity = Vector3.new(0, 0, 0)
-            humanoidRootPart.RotVelocity = Vector3.new(0, 0, 0)
-        end
-        
-        for _, part in pairs(character:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.Velocity = Vector3.new(0, 0, 0)
-                part.RotVelocity = Vector3.new(0, 0, 0)
-            end
-        end
-    end)
-end
-
--- ============================================================================
--- 5. RAGDOLL PREVENTION - STAY UPRIGHT INSTANTLY
--- ============================================================================
-local function preventRagdoll(character)
-    if not character then return end
-    
-    task.spawn(function()
-        local humanoid = character:FindFirstChildOfClass("Humanoid")
-        if humanoid then
-            humanoid.PlatformStand = false
-        end
-        
-        for _, part in pairs(character:GetDescendants()) do
-            if part:IsA("Motor6D") or part:IsA("Weld") then
-                part.Enabled = true
-            end
-        end
-    end)
-end
-
--- ============================================================================
--- 6. MONITOR HEALTH AND RESPAWN WHEN KILLED
--- ============================================================================
-local function monitorHealth()
-    task.spawn(function()
-        while _G.RespawnScript.Active do
-            pcall(function()
-                if LocalPlayer.Character then
-                    local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-                    if humanoid and humanoid.Health <= 0 then
-                        -- Player is dead, trigger instant respawn
-                        instantRespawn()
-                        task.wait(0.5) -- Wait before checking again
-                    end
-                end
-            end)
-            RunService.Heartbeat:Wait()
-        end
-    end)
-end
-
--- ============================================================================
--- CHARACTER ADDED HANDLER
--- ============================================================================
+-- EVENT DRIVEN: Monitor Death via Humanoid.Died instead of Heartbeat polling
 local function onCharacterAdded(character)
-    if not _G.RespawnScript.Active then return end
+    if not _G.RespawnConfig.Active then return end
     
-    task.wait(0.1)
-    resetPhysics(character)
-    preventRagdoll(character)
-end
-
--- ============================================================================
--- GUI SETUP (Small, Pure Black & Red, Fixed Position)
--- ============================================================================
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "RespawnToggleGui"
-screenGui.ResetOnSpawn = false
-
-local success, _ = pcall(function() screenGui.Parent = CoreGui end)
-if not success then screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
-
-local toggleButton = Instance.new("TextButton")
-toggleButton.Name = "ToggleButton"
-toggleButton.Parent = screenGui
-toggleButton.Size = UDim2.new(0, 95, 0, 35)
-toggleButton.Position = UDim2.new(0, 20, 0.5, -17)
-toggleButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-toggleButton.BorderSizePixel = 1
-toggleButton.BorderColor3 = Color3.fromRGB(255, 0, 0)
-toggleButton.Text = "FAST: OFF"
-toggleButton.TextColor3 = Color3.fromRGB(255, 0, 0)
-toggleButton.Font = Enum.Font.SourceSansBold
-toggleButton.TextSize = 14
-toggleButton.Active = true
-toggleButton.Selectable = true
-
--- ============================================================================
--- TOGGLE FUNCTION HANDLER
--- ============================================================================
-local function toggleScript()
-    if _G.RespawnScript.Active then
-        _G.RespawnScript.Active = false
-        disconnectAll()
-        toggleButton.Text = "FAST: OFF"
-    else
-        _G.RespawnScript.Active = true
-        toggleButton.Text = "FAST: ON"
-        
-        -- Start health monitoring (only respawns when killed)
-        monitorHealth()
-        
-        local charAddedConnection = LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
-        table.insert(_G.RespawnScript.Connections, charAddedConnection)
-        
-        local keyConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
-            if not gameProcessed and input.KeyCode == Enum.KeyCode.R then
-                -- Manual respawn with R key
-                if LocalPlayer.Character then
-                    instantRespawn()
-                end
-            end
-        end)
-        table.insert(_G.RespawnScript.Connections, keyConnection)
-        
-        if LocalPlayer.Character then
-            onCharacterAdded(LocalPlayer.Character)
-        end
+    optimizeCharacter(character)
+    instantServerSync(character)
+    
+    local humanoid = character:WaitForChild("Humanoid", 5)
+    if humanoid then
+        humanoid.Died:Connect(triggerInstantRespawn)
     end
 end
 
-toggleButton.MouseButton1Click:Connect(toggleScript)
+-- Manual Respawn Keybind (R)
+game:GetService("UserInputService").InputBegan:Connect(function(input, gpe)
+    if gpe or not _G.RespawnConfig.Active then return end
+    if input.KeyCode == Enum.KeyCode.R and LocalPlayer.Character then
+        triggerInstantRespawn()
+    end
+end)
 
-print("✅ RESPAWN SCRIPT LOADED - INSTANT RESPAWN WHEN KILLED!")
+LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
+if LocalPlayer.Character then onCharacterAdded(LocalPlayer.Character) end
+
+print("✅ [UPGRADED] Respawn Script Loaded - Event Driven, No UI")
