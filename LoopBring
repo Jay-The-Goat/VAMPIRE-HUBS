@@ -1,255 +1,57 @@
+-- ============================================================================
+-- LOOP BRING - POSTSIMULATION SMOOTH & UI STRIPPED
+-- ============================================================================
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
-local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
 
-local LoopBrings = {}
-
--- Main GUI Setup
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "Delta_Crimson_LoopBring"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.Parent = game:GetService("CoreGui")
-
--- Dark Cyber-Crimson Theme Colors
-local COLORS = {
-    Background = Color3.fromRGB(12, 10, 11),
-    CardBg = Color3.fromRGB(22, 16, 18),
-    HoverBg = Color3.fromRGB(36, 20, 24),
-    Accent = Color3.fromRGB(255, 42, 75), -- Vibrant Neon Red
-    TextMain = Color3.fromRGB(245, 240, 241),
-    TextActive = Color3.fromRGB(255, 50, 80), -- Glowing Red for Active
-    TextInActive = Color3.fromRGB(160, 150, 152) -- Muted Ash for Inactive
+-- Global State for Future UI Integration
+_G.LoopBringConfig = _G.LoopBringConfig or { 
+    Active = true,
+    Targets = {}, -- Dictionary: [UserId] = true
+    Offset = CFrame.new(0, 0, -3)
 }
 
--- Custom Hover Animation Helper
-local function tweenColor(instance, property, targetColor, duration)
-    TweenService:Create(instance, TweenInfo.new(duration or 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {[property] = targetColor}):Play()
-end
-
--- Dragging Logic for the Toggle Button
-local function makeDraggable(frame)
-    local dragging, dragInput, dragStart, startPos
-
-    local function update(input)
-        local delta = input.Position - dragStart
-        frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    end
-
-    frame.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            dragStart = input.Position
-            startPos = frame.Position
-
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                end
-            end)
-        end
-    end)
-
-    frame.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-            dragInput = input
-        end
-    end)
-
-    UserInputService.InputChanged:Connect(function(input)
-        if input == dragInput and dragging then
-            update(input)
-        end
-    end)
-end
-
--- Small Crimson Toggle Button
-local ToggleFrame = Instance.new("Frame", ScreenGui)
-ToggleFrame.Size = UDim2.new(0, 110, 0, 32)
-ToggleFrame.Position = UDim2.new(1, -130, 0, 30)
-ToggleFrame.BackgroundColor3 = COLORS.Background
-ToggleFrame.BackgroundTransparency = 0.1
-
--- Only this button frame can be moved now
-makeDraggable(ToggleFrame)
-
-local ToggleStroke = Instance.new("UIStroke", ToggleFrame)
-ToggleStroke.Color = COLORS.Accent
-ToggleStroke.Thickness = 1.5
-
-local ToggleCorner = Instance.new("UICorner", ToggleFrame)
-ToggleCorner.CornerRadius = UDim.new(0, 8)
-
-local ToggleButton = Instance.new("TextButton", ToggleFrame)
-ToggleButton.Size = UDim2.new(1, 0, 1, 0)
-ToggleButton.BackgroundTransparency = 1
-ToggleButton.TextColor3 = COLORS.TextMain
-ToggleButton.Text = "🚨 Loop Bring"
-ToggleButton.Font = Enum.Font.GothamBold
-ToggleButton.TextSize = 13
-
--- Main Window Frame (Static / Not Moveable)
-local Frame = Instance.new("Frame", ScreenGui)
-Frame.Size = UDim2.new(0, 240, 0, 0)
-Frame.Position = UDim2.new(1, -260, 0, 75)
-Frame.BackgroundColor3 = COLORS.Background
-Frame.BackgroundTransparency = 0.05
-Frame.ClipsDescendants = true
-Frame.Visible = false
-
-local FrameStroke = Instance.new("UIStroke", Frame)
-FrameStroke.Color = COLORS.Accent
-FrameStroke.Thickness = 1.5
-
-local FrameCorner = Instance.new("UICorner", Frame)
-FrameCorner.CornerRadius = UDim.new(0, 10)
-
--- UI Header
-local Header = Instance.new("Frame", Frame)
-Header.Size = UDim2.new(1, 0, 0, 40)
-Header.BackgroundColor3 = COLORS.CardBg
-Header.BorderSizePixel = 0
-
-local HeaderCorner = Instance.new("UICorner", Header)
-HeaderCorner.CornerRadius = UDim.new(0, 10)
-
-local HeaderTitle = Instance.new("TextLabel", Header)
-HeaderTitle.Size = UDim2.new(1, -20, 1, 0)
-HeaderTitle.Position = UDim2.new(0, 12, 0, 0)
-HeaderTitle.BackgroundTransparency = 1
-HeaderTitle.Text = "CRIMSON TARGET LIST"
-HeaderTitle.TextColor3 = COLORS.TextMain
-HeaderTitle.Font = Enum.Font.GothamBold
-HeaderTitle.TextSize = 11
-HeaderTitle.TextXAlignment = Enum.TextXAlignment.Left
-
--- Content List Wrapper
-local ListFrame = Instance.new("ScrollingFrame", Frame)
-ListFrame.Size = UDim2.new(1, -16, 1, -55)
-ListFrame.Position = UDim2.new(0, 8, 0, 48)
-ListFrame.BackgroundTransparency = 1
-ListFrame.ScrollBarThickness = 4
-ListFrame.ScrollBarImageColor3 = COLORS.Accent
-ListFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-
-local UIListLayout = Instance.new("UIListLayout", ListFrame)
-UIListLayout.FillDirection = Enum.FillDirection.Vertical
-UIListLayout.Padding = UDim.new(0, 6)
-
--- Smooth Open/Close Toggle logic
-local isOpened = false
-local function toggleVisibility()
-    isOpened = not isOpened
-    local targetSize = isOpened and UDim2.new(0, 240, 0, 280) or UDim2.new(0, 240, 0, 0)
+-- PostSimulation for smoothest possible bring (every physics tick)
+RunService.PostSimulation:Connect(function()
+    if not _G.LoopBringConfig.Active then return end
     
-    if isOpened then Frame.Visible = true end
+    local myChar = LocalPlayer.Character
+    local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    if not myHRP then return end
     
-    local tween = TweenService:Create(Frame, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = targetSize})
-    tween:Play()
-    
-    tween.Completed:Connect(function()
-        if not isOpened then Frame.Visible = false end
-    end)
-end
-ToggleButton.MouseButton1Click:Connect(toggleVisibility)
-
--- Main Loopbring functionality
-local function loopBring(targetPlayer, label)
-    if LoopBrings[targetPlayer.UserId] then
-        LoopBrings[targetPlayer.UserId] = nil
-        label.Text = targetPlayer.Name
-        tweenColor(label, "TextColor3", COLORS.TextInActive)
-        return
-    end
-
-    LoopBrings[targetPlayer.UserId] = true
-    label.Text = "🔥 " .. targetPlayer.Name .. " [Bring]"
-    tweenColor(label, "TextColor3", COLORS.TextActive)
-
-    task.spawn(function()
-        while LoopBrings[targetPlayer.UserId] and targetPlayer and targetPlayer.Character do
-            if not Players:FindFirstChild(targetPlayer.Name) then break end
-            
-            -- Wait for LocalPlayer to respawn if they're dead
-            while not LocalPlayer.Character do
-                task.wait(0.1)
-            end
-            
-            local targetHRP = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
-            local localHRP = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-            
-            if targetHRP and localHRP then
-                targetHRP.CFrame = localHRP.CFrame * CFrame.new(0, 0, -3)
-                targetHRP.Velocity = Vector3.new(0, 0, 0)
-            end
-            task.wait(0.1)
-        end
-    end)
-end
-
--- Refresh List UI
-local function updatePlayerList()
-    for _, child in ipairs(ListFrame:GetChildren()) do
-        if child:IsA("TextButton") then child:Destroy() end
-    end
-
-    local playerCount = 0
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            playerCount = playerCount + 1
-            
-            local playerButton = Instance.new("TextButton")
-            playerButton.Size = UDim2.new(1, 0, 0, 36)
-            playerButton.BackgroundColor3 = COLORS.CardBg
-            playerButton.Text = player.Name
-            playerButton.TextColor3 = COLORS.TextInActive
-            playerButton.Font = Enum.Font.GothamMedium
-            playerButton.TextSize = 13
-            playerButton.AutoButtonColor = false
-            playerButton.Parent = ListFrame
-
-            local BtnCorner = Instance.new("UICorner", playerButton)
-            BtnCorner.CornerRadius = UDim.new(0, 6)
-            
-            local BtnStroke = Instance.new("UIStroke", playerButton)
-            BtnStroke.Color = Color3.fromRGB(45, 30, 32)
-            BtnStroke.Thickness = 1
-
-            if LoopBrings[player.UserId] then
-                playerButton.Text = "🔥 " .. player.Name .. " [Bring]"
-                playerButton.TextColor3 = COLORS.TextActive
-            end
-
-            -- Interactive Hover Effects
-            playerButton.MouseEnter:Connect(function()
-                tweenColor(playerButton, "BackgroundColor3", COLORS.HoverBg)
-                tweenColor(BtnStroke, "Color", COLORS.Accent)
-            end)
-            playerButton.MouseLeave:Connect(function()
-                tweenColor(playerButton, "BackgroundColor3", COLORS.CardBg)
-                tweenColor(BtnStroke, "Color", Color3.fromRGB(45, 30, 32))
-            end)
-
-            playerButton.MouseButton1Click:Connect(function()
-                loopBring(player, playerButton)
-            end)
-        end
-    end
-    ListFrame.CanvasSize = UDim2.new(0, 0, 0, playerCount * 42)
-end
-
--- Dynamic Listeners
-Players.PlayerAdded:Connect(function(player)
-    updatePlayerList()
-    if LoopBrings[player.UserId] then
-        task.wait(1)
-        for _, button in ipairs(ListFrame:GetChildren()) do
-            if button:IsA("TextButton") and button.Text:find(player.Name) then
-                loopBring(player, button)
+    for userId, _ in pairs(_G.LoopBringConfig.Targets) do
+        local player = Players:GetPlayerByUserId(userId)
+        if player and player.Character then
+            local targetHRP = player.Character:FindFirstChild("HumanoidRootPart")
+            if targetHRP then
+                -- Direct CFrame assignment (no tweening overhead)
+                targetHRP.CFrame = myHRP.CFrame * _G.LoopBringConfig.Offset
+                targetHRP.Velocity = Vector3.zero
+                targetHRP.RotVelocity = Vector3.zero
             end
         end
     end
 end)
 
-Players.PlayerRemoving:Connect(updatePlayerList)
-updatePlayerList()
+-- Helper API for future UI integration
+_G.LoopBringAPI = {
+    AddTarget = function(player)
+        if player and player.UserId then
+            _G.LoopBringConfig.Targets[player.UserId] = true
+        end
+    end,
+    RemoveTarget = function(player)
+        if player and player.UserId then
+            _G.LoopBringConfig.Targets[player.UserId] = nil
+        end
+    end,
+    ClearAll = function()
+        table.clear(_G.LoopBringConfig.Targets)
+    end,
+    Toggle = function(state)
+        _G.LoopBringConfig.Active = state
+    end
+}
+
+print("✅ [UPGRADED] LoopBring Loaded - PostSimulation Smooth, No UI")
